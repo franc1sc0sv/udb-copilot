@@ -126,8 +126,9 @@ def assignments(code: str | None = None) -> list[dict]:
     by_course = _courses(code)
     with client.connect() as api:
         out = []
-        for item in api.assignments(list(by_course)):
-            info = api.submission_info(item["id"])
+        items = api.assignments(list(by_course))
+        infos = _parallel(api.submission_info, [i["id"] for i in items])
+        for item, info in zip(items, infos, strict=True):
             out.append({
                 "subject": by_course[item["course_id"]],
                 "type": "assign",
@@ -142,7 +143,6 @@ def assignments(code: str | None = None) -> list[dict]:
                 "instructions": client.plain(item.get("intro")),
                 "url": f"{api.base}/mod/assign/view.php?id={item['cmid']}",
             })
-            client.pause()
         # Quizzes, forums and the rest: the calendar only lists what is pending.
         for ev in api.action_events(since=int(time.time()) - 60 * 86400):
             course_id = (ev.get("course") or {}).get("id")
@@ -156,6 +156,17 @@ def assignments(code: str | None = None) -> list[dict]:
         return sorted(out, key=lambda t: t["due"] or 10**12)
 
 
+WORKERS = 6
+
+
+def _parallel(fn, args: list) -> list:
+    """Run Moodle calls a few at a time: polite to the server, fast enough for a hook."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        return list(pool.map(fn, args))
+
+
 GROUP_RE = re.compile(r"grupo|equipo|conform|formaci")
 
 
@@ -165,11 +176,12 @@ def activity(codes: list[str], since: float) -> dict[str, dict]:
     by_course = {cid: c for cid, c in _courses(None).items() if c in codes}
     out = {c: {"announcements": [], "forum_posts": [], "group_threads": 0} for c in codes}
     with client.connect() as api:
-        for forum in api.forums(list(by_course)):
-            code = by_course.get(forum["course"])
-            if not code or forum["type"] not in ("news", "general"):
-                continue
-            for d in api.discussions(forum["id"], 20):
+        forums = [f for f in api.forums(list(by_course))
+                  if by_course.get(f["course"]) and f["type"] in ("news", "general")]
+        threads = _parallel(lambda fid: api.discussions(fid, 20), [f["id"] for f in forums])
+        for forum, discussions in zip(forums, threads, strict=True):
+            code = by_course[forum["course"]]
+            for d in discussions:
                 when = d.get("timemodified") or 0
                 row = {"forum": forum["name"], "topic": d.get("name", ""),
                        "author": d.get("userfullname", ""),
@@ -183,5 +195,4 @@ def activity(codes: list[str], since: float) -> dict[str, dict]:
                         out[code]["group_threads"] += 1
                     else:
                         out[code]["forum_posts"].append(row)
-            client.pause()
     return out
