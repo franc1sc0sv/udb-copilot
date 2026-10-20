@@ -1,4 +1,4 @@
-"""Any IMAP mailbox (Yahoo, Zoho, another university's server...).
+"""Any IMAP mailbox (Gmail with an app password, Yahoo, another university's server...).
 
 The password is an app password, stored by `udb mail login <id>` in the
 secrets folder or read from the variable named in `credentials_env`.
@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import email
 import imaplib
+import smtplib
 from datetime import datetime, timedelta
 from email.header import decode_header, make_header
+from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -86,3 +88,19 @@ class ImapProvider:
             target.write_bytes(part.get_payload(decode=True) or b"")
             saved.append(target)
         return saved
+
+    def send(self, to: str, subject: str, html: str, text: str = "") -> str:
+        host = self.account.get("smtp_host")
+        if not host or not self.account.get("send"):
+            raise MailError(f"account {self.account['id']} is not set to send (send: true, smtp_host)")
+        msg = EmailMessage()
+        msg["To"], msg["From"], msg["Subject"] = to, self.account["address"], subject
+        msg.set_content(text or "Este correo necesita un lector con HTML.")
+        msg.add_alternative(html, subtype="html")
+        with smtplib.SMTP_SSL(host, int(self.account.get("smtp_port", 465)), timeout=30) as smtp:
+            smtp.login(self.account.get("user", self.account["address"]), password_for(self.account))
+            smtp.send_message(msg)
+        return msg["Message-ID"] or "sent"
+
+    def check(self) -> None:
+        self._connect().logout()

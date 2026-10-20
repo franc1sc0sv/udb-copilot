@@ -151,6 +151,8 @@ def run(event: str) -> int:
         return 0
     if event == "session":
         return session_start()
+    if event == "prompt":
+        return prompt_context(payload.get("prompt", ""))
     out = check_post(args)
     if out:
         print(json.dumps(out))
@@ -167,4 +169,46 @@ def session_start() -> int:
             print(f"udb: search index built ({sum(counts.values())} chunks).")
     except settings.HomeNotFound:
         pass
+    return 0
+
+
+CLASSROOM_RE = re.compile(
+    r"\b(tareas?|pendientes?|entregas?|entregar|parcial(es)?|ex[aá]men(es)?|pruebas?|quiz|"
+    r"foros?|aula|moodle|vence|vencen|fecha|deadline|due|assignments?|homework|notas?|"
+    r"calificaci[oó]n|agenda|hoy|ma[ñn]ana|semana|horario|evaluaci[oó]n|desaf[ií]o|gu[ií]a)\b",
+    re.IGNORECASE)
+CACHE_MINUTES = 30
+
+
+def prompt_context(prompt: str) -> int:
+    """Classroom questions always get the real classroom state, so it is never skipped.
+
+    Runs the digest (no model) and injects it as context. Cached for 30 minutes
+    in index/classroom_cache.json so repeated questions stay fast.
+    """
+    import time
+
+    if not CLASSROOM_RE.search(prompt or ""):
+        return 0
+    try:
+        from ..core.paths import index_dir
+        from ..planning import digest
+
+        cache = index_dir() / "classroom_cache.json"
+        data = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+        if time.time() - data.get("at", 0) > CACHE_MINUTES * 60:
+            built = digest.build(hours=24)
+            data = {"at": time.time(), "checked": built["generated"],
+                    "text": digest.as_text(built)}
+            cache.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        context = (f"Classroom state checked by udb at {data['checked']} (Moodle, mail, routes; "
+                   "no model). Use it; call the digest or moodle_assignments tool for detail.\n\n"
+                   + data["text"])
+    except settings.HomeNotFound:
+        return 0
+    except Exception as exc:  # noqa: BLE001 - tell Claude the check failed instead of hiding it
+        context = (f"udb could not check the classroom ({type(exc).__name__}: {exc}). "
+                   "Say so, and call moodle_assignments before answering about deadlines.")
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                             "additionalContext": context}}, ensure_ascii=False))
     return 0

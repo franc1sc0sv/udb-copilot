@@ -8,7 +8,8 @@ from .common import console, guarded, report
 
 
 def register(app: typer.Typer) -> None:
-    setup_app = typer.Typer(help="Wire udb into tools (Claude Code, MathJax).")
+    setup_app = typer.Typer(help="Guided setup, or wire udb into tools (Claude Code, MathJax).",
+                            invoke_without_command=True)
     app.add_typer(setup_app, name="setup")
 
     @app.command()
@@ -17,7 +18,15 @@ def register(app: typer.Typer) -> None:
         from .. import setup
         home = setup.init(folder)
         console.print(f"[green]Data home ready at {home}[/green]")
-        console.print("Next: edit config/subjects.yaml, then `udb moodle login`.")
+        console.print(f"Next: cd {home} && udb setup")
+
+    @setup_app.callback()
+    def setup_wizard(ctx: typer.Context):
+        """Guided setup: Moodle login, subjects from your courses, mail accounts, Claude Code."""
+        if ctx.invoked_subcommand:
+            return
+        from .wizard import setup_all
+        guarded(setup_all)
 
     @setup_app.command("claude")
     def setup_claude(folder: Path = typer.Argument(None)):
@@ -76,9 +85,16 @@ def register(app: typer.Typer) -> None:
 
     @app.command()
     def verify(subject: str = typer.Argument(None),
-               path: Path = typer.Option(None, "--path", help="Check one file")):
+               path: Path = typer.Option(None, "--path", help="Check one file"),
+               fix: bool = typer.Option(False, "--fix", help="Repair citations whose quote moved")):
         """Check citations, plain language, methods and coverage. No model."""
         from .. import checks
+        if fix:
+            target = [path] if path else None
+            found = checks.check_file(path) if target else checks.check_subject(
+                subject.upper() if subject else None)
+            for line in checks.apply_fixes(found):
+                console.print(f"[green]fixed[/green] {line}")
         if path:
             found = guarded(checks.check_file, path)
             scope = str(path)
@@ -87,6 +103,47 @@ def register(app: typer.Typer) -> None:
             scope = f"vault/{subject.upper()}" if subject else "all"
         checks.write_report(found, scope)
         raise typer.Exit(report(found, "Vault"))
+
+    sources_app = typer.Typer(help="How well each source was read, and fixes.",
+                              invoke_without_command=True)
+    app.add_typer(sources_app, name="sources")
+
+    @sources_app.callback()
+    def sources_report(ctx: typer.Context,
+                       subject: str = typer.Option(None, "--subject", "-s", help="One subject"),
+                       all_: bool = typer.Option(False, "--all", help="Also list the ok ones")):
+        """Source health: ok, needs-ocr, images, no-text, unsupported, missing."""
+        if ctx.invoked_subcommand:
+            return
+        from rich.table import Table as T
+
+        from ..vault import sources
+        rows = guarded(sources.report, subject)
+        shown = rows if all_ else [r for r in rows if r["state"] not in ("ok", "transcript")]
+        table = T("source", "type", "pages", "chars", "imgs read", "embeds", "state", "fix")
+        for r in shown:
+            colour = {"ok": "green", "transcript": "green"}.get(r["state"], "yellow")
+            table.add_row(r["id"], r["type"], str(r["pages"]), str(r["chars"]),
+                          f"{r['images_read']}/{r['images']}", str(r["embeds"]),
+                          f"[{colour}]{r['state']}[/{colour}]", r["fix"] or "")
+        console.print(table)
+        summ = sources.summary(rows)
+        console.print(f"{summ['sources']} sources: {summ['by_state']} · figures read "
+                      f"{summ['images_read']}/{summ['images']} · OCR "
+                      f"{'available' if summ['ocr_available'] else 'missing (ocr extra)'}")
+
+    @sources_app.command("fix")
+    def sources_fix(target: str = typer.Argument(None, help="SUBJECT, a SRC id, or empty for all"),
+                    no_images: bool = typer.Option(False, "--no-images")):
+        """Re-extract stale sources, OCR scanned pages, download and read HTML figures."""
+        from ..vault import sources
+        sid = target if target and target.upper().startswith("SRC-") else None
+        code = target.upper() if target and not sid else None
+        rows = guarded(sources.fix, code, sid, images=not no_images,
+                       progress=lambda r: console.print(f"[dim]{r['id']} ({r['state']})...[/dim]"))
+        for r in rows:
+            mark = f"[red]{r['error']}[/red]" if r["error"] else f"[green]{r['state']}[/green]"
+            console.print(f"{r['id']}: {mark}  figures {r['images_read']}/{r['images']}")
 
     @app.command()
     def coverage(subject: str = typer.Argument(None)):

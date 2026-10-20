@@ -177,6 +177,19 @@ def register(app: typer.Typer) -> None:
         console.print(f"\nBoard: {out}")
 
     @app.command()
+    def view(kind: str = typer.Argument(..., help="digest | status | agenda | tasks"),
+             subject: str = typer.Argument(None),
+             out: Path = typer.Option(None, "--out", help="Write the fragment to a file")):
+        """Print the inline chat view (HTML fragment) that Claude shows with show_widget."""
+        from ..rendering import views
+        html = guarded(views.build, kind, subject)
+        if out:
+            out.write_text(html, encoding="utf-8")
+            console.print(f"[green]{out}[/green]")
+        else:
+            print(html)
+
+    @app.command()
     def digest(hours: int = typer.Option(24, help="Window for 'what changed'"),
                alerts: bool = typer.Option(False, "--alerts", help="Only what is new"),
                json_out: bool = typer.Option(False, "--json"),

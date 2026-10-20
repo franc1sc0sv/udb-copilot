@@ -35,6 +35,10 @@ result reached another way is marked wrong.
 [^c3]: MODEL | reason="why the material does not cover it" | basis=SRC-IRD-0003
 ```
 
+Never say a source cannot be read. Call `source_status`: it says what was read and how
+to fix the rest (`udb sources fix`). Look at figures with `source_figure`; their OCR text
+is searchable and citable.
+
 ## 3. Plain Spanish
 Sentences of 25 words or fewer. One idea per sentence. Active voice. Explain a
 technical term the first time. A worked example with real numbers beats an
@@ -67,7 +71,8 @@ every error yourself.
 """
 
 VAULT_READ = ["mcp__vault__vault_search", "mcp__vault__vault_quote",
-              "mcp__vault__vault_source", "mcp__vault__subject_list"]
+              "mcp__vault__vault_source", "mcp__vault__subject_list",
+              "mcp__vault__source_status", "mcp__vault__source_figure"]
 CHECKS = ["mcp__vault__verify_check", "mcp__vault__clarity_check"]
 METHOD_READ = ["mcp__vault__method_get", "mcp__vault__method_list"]
 

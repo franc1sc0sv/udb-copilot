@@ -20,12 +20,21 @@ def normalize(text: str) -> str:
     return WS.sub(" ", text).strip()
 
 
+# Placeholders the extractor writes where an image or embedded object was. A quote
+# may run across them, so matching ignores them.
+MARKER_RE = re.compile(r"\s*\[(?:Figura \d+[^\]]*|Contenido incrustado[^\]]*)\]\s*")
+
+
+def strip_markers(text: str) -> str:
+    return MARKER_RE.sub(" ", text)
+
+
 def contains(haystack: str, needle: str) -> bool:
-    return normalize(needle) in normalize(haystack)
+    return normalize(strip_markers(needle)) in normalize(strip_markers(haystack))
 
 
 def count_occurrences(haystack: str, needle: str) -> int:
-    return normalize(haystack).count(normalize(needle))
+    return normalize(strip_markers(haystack)).count(normalize(strip_markers(needle)))
 
 
 def split_sentences(text: str) -> list[str]:

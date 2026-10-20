@@ -21,27 +21,38 @@ MIN_QUOTE_CHARS = 20
 AMBIGUOUS_AFTER = 3
 
 
-def quote_in_pages(code: str, source_id: str, quote: str, page: int | None) -> bool:
+def locate(code: str, source_id: str, quote: str) -> list[int]:
+    """Pages where the quote is, including quotes that run across a page break."""
     pages = index.load_pages(code, source_id)
-    if not pages:
-        return False
-    if page is None:
-        return any(contains(p["text"], quote) for p in pages)
-    by_page = {p["page"]: p["text"] for p in pages}
-    if contains(by_page.get(page, ""), quote):
-        return True
-    # A quote may run across the page break; vault_quote hands out chunks that
-    # span two pages and labels them with the first.
-    return contains(by_page.get(page, "") + " " + by_page.get(page + 1, ""), quote)
+    found = [p["page"] for p in pages if contains(p["text"], quote)]
+    if found:
+        return found
+    return [a["page"] for a, b in zip(pages, pages[1:], strict=False)
+            if contains(a["text"] + " " + b["text"], quote)]
+
+
+def quote_in_pages(code: str, source_id: str, quote: str, page: int | None) -> bool:
+    found = locate(code, source_id, quote)
+    return bool(found) if page is None else page in found
+
+
+def _window_text(segments: list[dict], start: float, end: float) -> str:
+    return " ".join(s.get("text", "") for s in segments
+                    if s.get("end", 0) >= start - WINDOW_SLACK and s.get("start", 0) <= end + WINDOW_SLACK)
 
 
 def quote_in_window(code: str, source_id: str, quote: str, window: tuple[float, float]) -> bool:
     segments = index.load_segments(code, source_id)
-    start, end = window
-    text = " ".join(s.get("text", "") for s in segments
-                    if s.get("end", 0) >= start - WINDOW_SLACK
-                    and s.get("start", 0) <= end + WINDOW_SLACK)
-    return bool(segments) and contains(text, quote)
+    return bool(segments) and contains(_window_text(segments, *window), quote)
+
+
+def locate_in_transcript(code: str, source_id: str, quote: str) -> tuple[float, float] | None:
+    segments = index.load_segments(code, source_id)
+    for i in range(len(segments)):
+        span = segments[i:i + 4]
+        if contains(" ".join(s.get("text", "") for s in span), quote):
+            return float(span[0]["start"]), float(span[-1]["end"])
+    return None
 
 
 def quote_in_snapshot(code: str, source_id: str, quote: str) -> bool:
@@ -92,8 +103,16 @@ def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
             return out + [Finding(path, anchor.line, "malformed-anchor",
                                   f"t={anchor.fields['t']} is not HH:MM:SS-HH:MM:SS")]
         if not quote_in_window(owner, source_id, quote, window):
-            out.append(Finding(path, anchor.line, "quote-not-in-window",
-                               f'{source_id} t={anchor.fields["t"]} does not contain: "{quote}"'))
+            moved = locate_in_transcript(owner, source_id, quote)
+            if moved:
+                new = f"{anchors.hhmmss(moved[0])}-{anchors.hhmmss(moved[1])}"
+                out.append(Finding(path, anchor.line, "quote-moved",
+                                   f"{source_id}: the quote is at t={new}, not t={anchor.fields['t']}",
+                                   level="warning",
+                                   fix={"old": f"t={anchor.fields['t']}", "new": f"t={new}"}))
+            else:
+                out.append(Finding(path, anchor.line, "quote-not-in-window",
+                                   f'{source_id} t={anchor.fields["t"]} does not contain: "{quote}"'))
         return out
 
     if "url" in anchor.fields and "page" not in anchor.fields:
@@ -104,10 +123,18 @@ def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
 
     raw_page = anchor.fields.get("page", "")
     page = int(raw_page) if raw_page.isdigit() else None
-    if not quote_in_pages(owner, source_id, quote, page):
+    found = locate(owner, source_id, quote)
+    if not found:
         where = f"p.{page}" if page else "the document"
         out.append(Finding(path, anchor.line, "quote-not-found",
                            f'{source_id} {where} does not contain: "{quote}"'))
+    elif page is not None and page not in found:
+        # The text is there but on another page: the source was re-extracted (HTML now
+        # splits by section, scanned pages got OCR). `udb verify --fix` updates it.
+        new = min(found, key=lambda p: abs(p - page))
+        out.append(Finding(path, anchor.line, "quote-moved",
+                           f"{source_id}: the quote is on page {new}, not {page}", level="warning",
+                           fix={"old": f"page={page}", "new": f"page={new}"}))
     elif page is None and occurrences(owner, source_id, quote) > AMBIGUOUS_AFTER:
         out.append(Finding(path, anchor.line, "ambiguous-quote",
                            f'"{quote}" appears in many places of {source_id}; add page=',

@@ -17,3 +17,9 @@ description: Morning summary and 'what is pending': classes today, days left to 
 
 Scheduled runs (06:00 routine): build the email from the JSON, Spanish, warm and brief,
 subject "Mañanita: tu día <fecha>". In alert mode (`alerts=true`), send nothing when `empty` is true.
+
+**Show it inline.** Call the `view` tool with kind `digest`. If the `show_widget`
+tool (visualize) is available, read its guide once, then pass the HTML unchanged as
+`widget_code`. Do not rewrite it and do not open an artifact. Then add two or three
+sentences: what is urgent and the next step. Without `show_widget` (phone, terminal),
+answer from the JSON tool in a short list instead.

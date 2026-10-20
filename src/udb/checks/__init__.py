@@ -49,3 +49,24 @@ def counts_for(path: Path) -> dict:
     if not out.exists():
         return {}
     return json.loads(out.read_text(encoding="utf-8"))["files"].get(relative(path), {})
+
+
+def apply_fixes(findings: list[Finding]) -> list[str]:
+    """Apply the automatic repairs (moved quotes) in place. Returns what changed."""
+    from ..core.paths import home
+
+    changed = []
+    by_file: dict[str, list[Finding]] = {}
+    for f in findings:
+        if f.fix:
+            by_file.setdefault(f.path, []).append(f)
+    for rel, items in by_file.items():
+        path = Path(rel) if Path(rel).is_absolute() else home() / rel
+        lines = path.read_text(encoding="utf-8").split("\n")
+        for f in items:
+            line = lines[f.line - 1]
+            if f.fix["old"] in line:
+                lines[f.line - 1] = line.replace(f.fix["old"], f.fix["new"], 1)
+                changed.append(f"{rel}:{f.line}  {f.fix['old']} -> {f.fix['new']}")
+        path.write_text("\n".join(lines), encoding="utf-8")
+    return changed

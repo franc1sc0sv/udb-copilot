@@ -11,7 +11,7 @@ from mcp.server.mcpserver import Image, MCPServer
 
 from .. import checks
 from ..core import anchors, findings, paths
-from ..core.text import normalize
+from ..core.text import contains
 from ..vault import classes, index, ingest, ledger, methods, registry
 
 INSTRUCTIONS = """Study vault with mandatory citations.
@@ -39,8 +39,14 @@ def vault_search(query: str, subject: str = "", class_number: int = 0, kind: str
                         class_number=class_number or None, limit=limit)
     if not rows:
         return "No results. The indexed material does not cover that."
+    sections = {}
+    for r in rows:
+        key = (r["subject"], r["source_id"])
+        if key not in sections:
+            sections[key] = {p["page"]: p.get("section") for p in index.load_pages(*key)}
     return ok([{"chunk_id": r["id"], "source_id": r["source_id"], "title": r["title"],
                 "kind": r["kind"], "class": r["class"], "page": r["page"],
+                "section": sections[(r["subject"], r["source_id"])].get(r["page"]),
                 "t_start": r["t_start"], "t_end": r["t_end"], "excerpt": r["text"][:400]}
                for r in rows])
 
@@ -54,14 +60,24 @@ def vault_quote(chunk_id: int, key: str = "c1", substring: str = "") -> str:
         raise ValueError(f"chunk_id {chunk_id} does not exist")
     text = row["text"]
     wanted = substring.strip()
-    if wanted and normalize(wanted) not in normalize(text):
+    if wanted and not contains(text, wanted):
         raise ValueError("that text is not in the chunk. Quote only what you see.")
     quote = wanted or text[:240]
+    page = row["page"]
+    pages = {p["page"]: p for p in index.load_pages(row["subject"], row["source_id"])}
+    if page is not None and row["t_start"] is None:
+        # A chunk can span two pages; cite the page where the quote really is.
+        from ..checks.citations import locate
+        found = locate(row["subject"], row["source_id"], quote)
+        if found and page not in found:
+            page = min(found, key=lambda p: abs(p - row["page"]))
     anchor = anchors.format_anchor(key=key, source_id=row["source_id"], quote=quote,
-                                   page=row["page"], t_start=row["t_start"], t_end=row["t_end"],
+                                   page=page if row["t_start"] is None else None,
+                                   t_start=row["t_start"], t_end=row["t_end"],
                                    url=row["url"], retrieved=row["retrieved_at"] if row["url"] else None)
     return ok({"exact_text": quote, "anchor": anchor, "source": row["source_id"],
-               "title": row["title"], "full_chunk": text})
+               "title": row["title"], "page": page,
+               "section": (pages.get(page) or {}).get("section"), "full_chunk": text})
 
 
 @server.tool()
@@ -80,6 +96,37 @@ def vault_register(subject: str, path: str, kind: str = "course", class_number: 
     result = ingest.ingest_file(subject, path, kind=kind, title=title or None,
                                 class_number=class_number or None)
     return ok({"source_id": result["source"]["id"], "chunks": result["chunks"]})
+
+
+@server.tool()
+def source_status(subject: str = "", source_id: str = "", problems_only: bool = True) -> str:
+    """How well each source was read: ok, needs-ocr, images (figures not read yet),
+    no-text, unsupported, missing. Call this BEFORE saying a source cannot be read;
+    every problem comes with the command that fixes it."""
+    from ..vault import sources
+    rows = sources.report(subject or None, source_id or None)
+    shown = [r for r in rows if r["state"] not in ("ok", "transcript")] if problems_only else rows
+    return ok({"summary": sources.summary(rows), "sources": shown})
+
+
+@server.tool()
+def source_figure(source_id: str, n: int) -> list:
+    """One figure of an HTML source as an image, to SEE a diagram, table or formula that
+    the text does not contain. The only valid way to open source images."""
+    from ..vault import ingest
+    code = registry.subject_of(source_id)
+    meta = ingest.load_meta(code, source_id)
+    img = next((i for i in meta.get("images", []) if int(i["n"]) == int(n)), None)
+    if not img:
+        raise ValueError(f"{source_id} has no figure {n}")
+    if not img.get("file"):
+        raise ValueError(f"figure {n} of {source_id} is not downloaded. Run: udb sources fix {source_id}")
+    path = ingest.images_dir(code, source_id) / img["file"]
+    fmt = path.suffix.lstrip(".").replace("jpg", "jpeg")
+    return [Image(data=path.read_bytes(), format=fmt),
+            ok({"source_id": source_id, "figure": n, "caption": img.get("caption", ""),
+                "ocr_text": img.get("text", ""),
+                "cite_as": f'[^fN]: {source_id} | page=<the figure page> | quote="<text from ocr_text>"'})]
 
 
 @server.tool()
@@ -148,6 +195,15 @@ def status(subject: str = "") -> str:
     assignment, lesson, citation errors) and the next step. Offline. Start here."""
     from ..planning import status as st
     return ok(st.build(subject or None))
+
+
+@server.tool()
+def view(kind: str, subject: str = "") -> str:
+    """A ready-made inline view for the chat: kind = digest | status | agenda | tasks.
+    Pass the returned HTML unchanged to the visualize show_widget tool (read its guide
+    first), then add two or three sentences. Without show_widget, use the JSON tools."""
+    from ..rendering import views
+    return views.build(kind, subject or None)
 
 
 @server.tool()
@@ -326,9 +382,10 @@ def ledger_method_error(subject: str, method: str, wrong_step: str,
 
 
 TOOL_NAMES = [
-    "vault_search", "vault_quote", "vault_source", "vault_register", "subject_list",
+    "vault_search", "vault_quote", "vault_source", "vault_register", "source_status",
+    "source_figure", "subject_list",
     "method_get", "method_list", "method_check", "verify_check", "clarity_check",
-    "syllabus_coverage", "status", "class_sources", "lesson_render", "diagram_suggest",
+    "syllabus_coverage", "status", "view", "class_sources", "lesson_render", "diagram_suggest",
     "moodle_assignments", "tasks_board", "agenda", "digest", "mail_search", "projects",
     "recording_board", "recording_radar", "recording_frames", "recording_frame",
     "ledger_add_card", "ledger_due", "ledger_record", "ledger_weak", "ledger_misconception",

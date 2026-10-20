@@ -1,0 +1,26 @@
+{% from "views/_macros.html.j2" import pill, row_start %}
+<h2 class="sr-only">Agenda de evaluaciones por materia, con el reparto de la nota.</h2>
+{% for a in alerts[:4] %}<div style="font-size:13px;margin-bottom:6px;color:var(--text-{{ 'danger' if a.level == 'bad' else 'warning' }})"><i class="ti ti-alert-triangle" aria-hidden="true"></i> {{ a.subject }}: {{ a.text }}</div>{% endfor %}
+{% for s in subjects %}
+{% set b = s.breakdown %}
+<div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin:12px 0">
+  <div style="display:flex;align-items:baseline;gap:8px"><span style="font-weight:500">{{ s.code }}</span><span style="color:var(--text-secondary);font-size:14px">{{ s.name }}</span></div>
+  {% if b.total %}
+  <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin:10px 0 4px;background:var(--surface-1)" role="img" aria-label="Con nota {{ b.graded }}%, esperando nota {{ b.waiting }}%, por jugar {{ b.future }}%">
+    <span style="width:{{ b.graded }}%;background:var(--fill-success)"></span>
+    <span style="width:{{ b.waiting }}%;background:var(--fill-warning)"></span>
+  </div>
+  <div style="font-size:12px;color:var(--text-secondary)">con nota {{ b.graded | round | int }}% · esperando {{ b.waiting | round | int }}% · por jugar {{ b.future | round | int }}%{% if b.needed is not none %} · necesitas {{ '%.1f' % b.needed }} en lo que falta{% endif %}</div>
+  {% endif %}
+  {% for it in s['items'] if it.bucket == 'upcoming' or it.late %}
+  {{ row_start() }}
+    <span style="min-width:72px">{{ pill((it.days ~ " d") if it.days >= 0 else "vencida", 'danger' if it.late else tone_for_days(it.days, it.state == 'submitted')) }}</span>
+    <span style="flex:1;min-width:0">{{ it.label }}</span>
+    <span style="font-size:12px;color:var(--text-secondary)">{{ state_es.get(it.state, it.state) }}</span>
+    <span style="font-size:13px;color:var(--text-secondary);min-width:34px;text-align:right">{{ it.weight }}%</span>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% set failed = sources | rejectattr('ok') | list %}
+{% if failed %}<div style="font-size:13px;color:var(--text-warning)"><i class="ti ti-alert-triangle" aria-hidden="true"></i> No pude leer: {{ failed | map(attribute='name') | join(', ') }}</div>{% endif %}

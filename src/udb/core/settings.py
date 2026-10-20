@@ -31,7 +31,7 @@ DEFAULTS: dict = {
     },
     "paths": {"vault": "vault", "config": "config", "index": "index", "cycles": "cycles"},
     "secrets_dir": "~/.config/udb",
-    "rate_limit_seconds": 1.0,
+    "rate_limit_seconds": 0.3,
 }
 
 

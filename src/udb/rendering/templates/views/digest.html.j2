@@ -1,0 +1,33 @@
+{% from "views/_macros.html.j2" import pill, metric, row_start %}
+<h2 class="sr-only">Resumen del día: clases, entregas próximas y cuenta regresiva de evaluaciones.</h2>
+{% if d.mode != 'alerts' %}
+{% set next = (d.countdown | rejectattr('submitted') | list)[:1] %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0 0 1.25rem">
+  {{ metric("Vence en 72 h", d.due_soon | length, "sin entregar") }}
+  {{ metric("Clases hoy", (d.classes_today | map(attribute='code') | join(', ')) or "ninguna") }}
+  {% if next %}{{ metric("Próxima evaluación", when(next[0].days), next[0].subject ~ " · " ~ next[0].label) }}{% endif %}
+</div>
+{% if d.countdown %}
+<div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px">Cuenta regresiva</div>
+{% for i in d.countdown %}
+{{ row_start() }}
+  <span style="min-width:72px">{{ pill(i.days ~ " d" if not i.submitted else "entregada", tone_for_days(i.days, i.submitted)) }}</span>
+  <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:34px">{{ i.subject }}</span>
+  <span style="flex:1;min-width:0">{{ i.label }}</span>
+  {% if i.weight %}<span style="font-size:13px;color:var(--text-secondary)">{{ i.weight }}%</span>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+{% set cr = d.classroom %}
+{% if cr.changed_assignments or cr.announcements %}
+<div style="font-size:13px;color:var(--text-secondary);margin:1.25rem 0 4px">Novedades en el aula</div>
+{% for a in cr.changed_assignments %}{{ row_start() }}<i class="ti ti-file-plus" aria-hidden="true" style="font-size:16px;color:var(--text-accent)"></i><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)">{{ a.subject }}</span><span style="flex:1">{{ a.name }}</span><span style="font-size:13px;color:var(--text-secondary)">{{ a.due or "sin fecha" }}</span></div>{% endfor %}
+{% for a in cr.announcements %}{{ row_start() }}<i class="ti ti-speakerphone" aria-hidden="true" style="font-size:16px;color:var(--text-accent)"></i><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)">{{ a.subject }}</span><span style="flex:1">{{ a.topic }}</span><span style="font-size:13px;color:var(--text-secondary)">{{ a.author }}</span></div>{% endfor %}
+{% endif %}
+{% if d.mail %}
+<div style="font-size:13px;color:var(--text-secondary);margin:1.25rem 0 4px">Correos</div>
+{% for m in d.mail[:8] %}{{ row_start() }}<i class="ti ti-mail" aria-hidden="true" style="font-size:16px;color:var(--text-secondary)"></i><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.subject }}</span><span style="font-size:13px;color:var(--text-secondary);max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.sender }}</span></div>{% endfor %}
+{% endif %}
+{% set failed = d.sources | rejectattr('ok') | list %}
+{% if failed %}<div style="margin-top:1rem;font-size:13px;color:var(--text-warning)"><i class="ti ti-alert-triangle" aria-hidden="true"></i> No pude leer: {{ failed | map(attribute='name') | join(', ') }}</div>{% endif %}

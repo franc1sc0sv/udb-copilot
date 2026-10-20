@@ -27,6 +27,13 @@ def accounts():
     console.print(table)
 
 
+@mail_app.command("add")
+def add():
+    """Add a mail account step by step (Gmail, Outlook or IMAP) and test it."""
+    from .wizard import mail_add
+    guarded(mail_add)
+
+
 @mail_app.command("login")
 def login(account_id: str,
           client_secret: Path = typer.Option(None, help="Google OAuth client JSON (gmail)"),
@@ -35,7 +42,7 @@ def login(account_id: str,
     from ..integrations.mail import base
     acc = guarded(base.get_account, account_id)
     kind = acc.get("provider")
-    if kind == "gmail":
+    if kind == "gmail" and acc.get("auth") != "app-password":
         from ..integrations.google import oauth
         if not client_secret:
             die("Gmail needs --client-secret <file.json> (a Google Cloud OAuth desktop client)")
@@ -48,7 +55,7 @@ def login(account_id: str,
     elif kind == "outlook":
         from ..integrations.mail import outlook
         guarded(outlook.login, acc)
-    elif kind == "imap":
+    elif kind == "imap" or acc.get("auth") == "app-password":
         path = base.secret_path(acc)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch(mode=0o600, exist_ok=True)

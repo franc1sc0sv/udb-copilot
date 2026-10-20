@@ -16,3 +16,9 @@ description: Assessment agenda: what was graded last week and what comes next, c
 The passing grade does not come from the route: say so when computing what is needed.
 A submission uploaded by a teammate goes in `config/agenda_overrides.yaml`.
 The route decides what is graded and its weight; Moodle decides when it closes. If they differ, give both dates.
+
+**Show it inline.** Call the `view` tool with kind `agenda` (and the subject, if one was named). If the `show_widget`
+tool (visualize) is available, read its guide once, then pass the HTML unchanged as
+`widget_code`. Do not rewrite it and do not open an artifact. Then add two or three
+sentences: what is urgent and the next step. Without `show_widget` (phone, terminal),
+answer from the JSON tool in a short list instead.

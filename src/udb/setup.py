@@ -28,6 +28,7 @@ HOOK_SESSION = (PATH_FIX + 'if ! command -v udb >/dev/null 2>&1 && [ "$CLAUDE_CO
                 f'then uv tool install -q "${{UDB_INSTALL_SPEC:-{INSTALL_SPEC}}}"; fi; '
                 '[ -n "$CLAUDE_ENV_FILE" ] && echo \'export PATH="$HOME/.local/bin:$PATH"\' '
                 '>> "$CLAUDE_ENV_FILE"; command -v udb >/dev/null 2>&1 && udb hook session; exit 0')
+HOOK_PROMPT = PATH_FIX + "command -v udb >/dev/null 2>&1 || exit 0; udb hook prompt"
 PRE_MATCHER = ("Read|Grep|Glob|Bash|NotebookEdit|WebFetch|mcp__chrome__.*|"
                "mcp__claude-in-chrome__.*")
 
@@ -78,6 +79,7 @@ def _merge_hooks(settings_path: Path) -> None:
     put("PreToolUse", PRE_MATCHER, HOOK_PRE)
     put("PostToolUse", "Write|Edit", HOOK_POST)
     put("SessionStart", None, HOOK_SESSION)
+    put("UserPromptSubmit", None, HOOK_PROMPT)
     allow = data.setdefault("permissions", {}).setdefault("allow", [])
     for rule in ("mcp__vault__vault_search", "mcp__vault__vault_quote", "mcp__vault__status",
                  "mcp__vault__digest", "Bash(udb status:*)", "Bash(udb verify:*)"):

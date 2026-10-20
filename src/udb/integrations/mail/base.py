@@ -115,6 +115,9 @@ def safe_name(name: str) -> str:
 
 def provider_for(account: dict) -> Provider:
     kind = account.get("provider")
+    if kind == "gmail" and account.get("auth") == "app-password":
+        from .imap import ImapProvider
+        return ImapProvider({"host": "imap.gmail.com", "smtp_host": "smtp.gmail.com", **account})
     if kind == "gmail":
         from .gmail import GmailProvider
         return GmailProvider(account)
