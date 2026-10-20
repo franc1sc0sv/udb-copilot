@@ -23,6 +23,9 @@ every claim is cited and every exercise follows your teacher's method.
 | **The teacher's method** | Exercises are solved only with the procedure the teacher taught, step by step, as HTML cards with formulas rendered offline. |
 | **Status board** | One row per class: material, recording, explanation, method, exercises, lesson, citation errors, next step. |
 | **Many mail accounts** | Gmail, Outlook (university or personal) and any IMAP server, declared in one file. |
+| **Reads everything** | Scanned PDFs get OCR; the images of the course pages are downloaded and read; HTML pages are split by section, so a citation points at "Inverso multiplicativo", not at a 20-page site. `udb sources` says what is still missing. |
+| **Inline views** | Pending work, class status, agenda and tasks show up as a small view inside the Claude chat, built from real data. |
+| **Never skips the classroom** | Any question about tasks, exams or deadlines gets the real Moodle state injected before Claude answers. |
 | **Homework and projects** | One folder per assignment, joined with Moodle; project code stays in its own repos, linked from the task. |
 
 ## How it fits together
@@ -63,12 +66,12 @@ You need Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), git, and
 formulas.
 
 ```bash
-uv tool install "udb-copilot[outlook,agent] @ git+https://github.com/franc1sc0sv/udb-copilot"
+uv tool install "udb-copilot[ocr,outlook,agent] @ git+https://github.com/franc1sc0sv/udb-copilot"
 udb init ~/udb-vault          # creates the data home and wires Claude Code into it
 cd ~/udb-vault
-udb moodle login              # asks for your UDB password once; only a token is stored
-udb moodle courses            # copy the course ids into config/subjects.yaml
+udb setup                     # Moodle login, pick your courses, add mail accounts
 udb sync IRD                  # downloads and indexes the material of one subject
+udb sources fix IRD           # OCR for scanned PDFs, reads the figures of the course pages
 udb status                    # the board of every class
 ```
 
@@ -95,14 +98,19 @@ gh repo create udb-vault --private --source . --push
 
 ## Mail accounts
 
+The easy way: `udb mail add`. It asks the type, the address and the password, tests the
+connection and saves it. For Gmail it uses an app password (Google account → Security →
+App passwords), no Google Cloud project needed.
+
 `config/mail.yaml` lists as many accounts as you want:
 
 ```yaml
 accounts:
   - id: personal
     provider: gmail
+    auth: app-password      # or OAuth (omit this line) to also read Calendar and Drive
     address: you@gmail.com
-    calendar: true          # also read Google Calendar
+    send: true              # can send you the daily summary
   - id: udb
     provider: outlook       # Microsoft Graph; see docs/outlook.md
     address: you@udb.edu.sv
@@ -125,12 +133,14 @@ them from the variable named in `credentials_env`.
 
 | Area | Commands |
 |---|---|
-| Setup | `udb init`, `udb setup claude`, `udb setup mathjax`, `udb migrate` |
+| Setup | `udb init`, `udb setup`, `udb setup claude`, `udb setup mathjax`, `udb migrate` |
+| Sources | `udb sources`, `udb sources fix`, `udb verify --fix` |
+| Views | `udb view digest/status/agenda/tasks` (what Claude shows inline) |
 | Classroom | `udb moodle login/courses`, `udb sync`, `udb assignments`, `udb assignment fetch/submission` |
 | Planning | `udb digest`, `udb agenda`, `udb status`, `udb tasks`, `udb task new`, `udb projects` |
 | Vault | `udb ingest`, `udb reindex`, `udb verify`, `udb coverage`, `udb figures`, `udb diagrams` |
 | Writing (with Claude) | `udb class new/write/lesson`, `udb method new/extract/list`, `udb note new`, `udb exercise`, `udb study`, `udb explain`, `udb ask` |
-| Mail and Drive | `udb mail accounts/login/search/attachments`, `udb drive upload/replace/download/trash` |
+| Mail and Drive | `udb mail add/accounts/login/search/attachments`, `udb drive upload/replace/download/trash` |
 | Recordings (local) | `udb recording discover/board/download/attach/transcribe/frames/radar/process` |
 
 Run `udb <command> --help` for the details.
@@ -144,7 +154,8 @@ Run `udb <command> --help` for the details.
 4. **One diagram per note.**
 5. **Exercises are HTML step cards** with formulas rendered to SVG.
 
-`udb verify` checks all of this without a model. The write hook runs the same
+`udb verify` checks all of this without a model; [docs/references.md](docs/references.md)
+explains how a citation is made and checked. The write hook runs the same
 checks on every file Claude writes and makes it fix the errors.
 
 ## Privacy and security
