@@ -36,7 +36,8 @@ def add():
 
 @mail_app.command("login")
 def login(account_id: str,
-          client_secret: Path = typer.Option(None, help="Google OAuth client JSON (gmail)"),
+          client_secret: Path = typer.Option(None, help="Google OAuth client JSON; default: the "
+                                             "Workspace MCP's app"),
           scope: list[str] = typer.Option([], help="Extra Google scopes: calendar.read, drive")):
     """Store credentials for one account (outside the repo, mode 600)."""
     from ..integrations.mail import base
@@ -44,13 +45,11 @@ def login(account_id: str,
     kind = acc.get("provider")
     if kind == "gmail" and acc.get("auth") != "app-password":
         from ..integrations.google import oauth
-        if not client_secret:
-            die("Gmail needs --client-secret <file.json> (a Google Cloud OAuth desktop client)")
         scopes = ["gmail.read"] + (["gmail.send"] if acc.get("send") else [])
         scopes += (["calendar.read"] if acc.get("calendar") else []) + list(scope)
         if acc.get("drive") and "drive" not in scopes:
             scopes.append("drive")
-        creds = guarded(oauth.login, client_secret, scopes)
+        creds = guarded(oauth.login, scopes, client_secret)
         oauth.write_creds(base.secret_path(acc), creds)
     elif kind == "outlook":
         from ..integrations.mail import outlook

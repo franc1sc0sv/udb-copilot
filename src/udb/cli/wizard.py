@@ -45,31 +45,31 @@ def _test(account: dict) -> bool:
 def mail_add() -> dict | None:
     """Add one mail account interactively. Returns the saved account."""
     choice = Prompt.ask(
-        "Account type\n  1 Gmail (app password, the easy way)\n  2 Gmail with Google login "
-        "(also Calendar and Drive)\n  3 Outlook: university or personal\n  4 Other (IMAP)\nChoose",
+        "Account type\n  1 Gmail (Google login with your OAuth app, works in the cloud)\n"
+        "  2 Gmail with an app password (only on this computer)\n"
+        "  3 Outlook: university or personal\n  4 Other (IMAP)\nChoose",
         choices=["1", "2", "3", "4"], default="1")
     address = Prompt.ask("Email address").strip()
     suggested = re.sub(r"[^a-z0-9]+", "-", address.split("@")[0].lower()).strip("-") or "mail"
     account_id = Prompt.ask("Short name for this account", default=suggested)
     send = Confirm.ask("Use it to send you the daily summary?", default=choice in ("1", "2"))
 
-    if choice == "1":
+    if choice == "2":
         account = {"id": account_id, "provider": "gmail", "auth": "app-password",
                    "address": address, "send": send}
         console.print(f"\n1. Open {APP_PASSWORD_URL} (two-step verification must be on).\n"
                       "2. Create a password named udb and copy the 16 letters.\n")
         _store_secret(account, getpass.getpass("Paste the app password (hidden): "))
-    elif choice == "2":
+    elif choice == "1":
         from ..integrations.google import oauth
         from ..integrations.mail import base
         account = {"id": account_id, "provider": "gmail", "address": address, "send": send,
                    "calendar": Confirm.ask("Read Google Calendar too?", default=True),
                    "drive": Confirm.ask("Use Google Drive too?", default=False)}
-        secret = Prompt.ask("Path to your Google OAuth client JSON (Desktop app)")
         scopes = ["gmail.read"] + (["gmail.send"] if send else [])
         scopes += (["calendar.read"] if account["calendar"] else []) + (
             ["drive"] if account["drive"] else [])
-        oauth.write_creds(base.secret_path(account), oauth.login(secret, scopes))
+        oauth.write_creds(base.secret_path(account), oauth.login(scopes))
     elif choice == "3":
         from ..integrations.mail import outlook
         university = Confirm.ask("Is it the university account (@udb.edu.sv)?", default=True)

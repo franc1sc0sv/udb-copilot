@@ -90,9 +90,12 @@ def _merge_hooks(settings_path: Path) -> None:
                              encoding="utf-8")
 
 
-def _merge_mcp(path: Path) -> None:
+def _merge_mcp(path: Path, google: bool) -> None:
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     data.setdefault("mcpServers", {})["vault"] = {"command": "udb", "args": ["mcp"]}
+    if google:
+        # The Google Workspace MCP, with the same OAuth app and login as udb's Gmail.
+        data["mcpServers"]["google-workspace"] = {"command": "udb", "args": ["google-mcp"]}
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
@@ -134,7 +137,10 @@ def setup_claude(home: Path) -> list[str]:
     done.append(f"{len(prompts.AGENTS)} agents")
 
     _merge_hooks(claude / "settings.json")
-    _merge_mcp(home / ".mcp.json")
+    mail = home / "config" / "mail.yaml"
+    accounts = (yaml.safe_load(mail.read_text(encoding="utf-8")) or {}).get("accounts", []) \
+        if mail.exists() else []
+    _merge_mcp(home / ".mcp.json", any(a.get("provider") == "gmail" for a in accounts))
     try:
         domain = settings.load(home).institution.get("guard_domains", ["the classroom"])[0]
     except (OSError, KeyError, IndexError):

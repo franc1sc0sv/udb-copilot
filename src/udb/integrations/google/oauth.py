@@ -80,11 +80,24 @@ def write_creds(path: Path, creds: dict) -> None:
     path.write_text(json.dumps(creds), encoding="utf-8")
 
 
-def login(client_secret_file: Path, scopes: list[str], port: int = 8765) -> dict:
-    """Run the loopback consent flow and return authorized-user credentials."""
-    raw = json.loads(Path(client_secret_file).read_text(encoding="utf-8"))
-    app = raw.get("installed") or raw.get("web") or raw
-    client_id, client_secret = app["client_id"], app["client_secret"]
+def login(scopes: list[str], client_secret_file: Path | None = None, port: int = 8765) -> dict:
+    """Run the loopback consent flow and return authorized-user credentials.
+
+    The OAuth app is the one the Google Workspace MCP uses (GOOGLE_OAUTH_CLIENT_ID and
+    GOOGLE_OAUTH_CLIENT_SECRET), unless a client JSON file is given.
+    """
+    from ...core import secrets as udb_secrets
+
+    if client_secret_file:
+        raw = json.loads(Path(client_secret_file).read_text(encoding="utf-8"))
+        app = raw.get("installed") or raw.get("web") or raw
+        client_id, client_secret = app["client_id"], app["client_secret"]
+    else:
+        client = udb_secrets.google_client()
+        if not client:
+            raise GoogleError("no Google OAuth app found: set GOOGLE_OAUTH_CLIENT_ID and "
+                              "GOOGLE_OAUTH_CLIENT_SECRET (the Workspace MCP's), or pass a client JSON")
+        client_id, client_secret = client["GOOGLE_OAUTH_CLIENT_ID"], client["GOOGLE_OAUTH_CLIENT_SECRET"]
     redirect = f"http://localhost:{port}/"
     state = secrets.token_urlsafe(16)
     url = AUTH_URL + "?" + urlencode({

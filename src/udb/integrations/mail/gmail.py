@@ -12,25 +12,36 @@ from ..google import oauth
 from .base import MailError, Message, Query, matches, safe_name, secret_from_env, secret_path
 
 API = "https://gmail.googleapis.com/gmail/v1/users/me"
-LEGACY_DIR = Path("~/.google_workspace_mcp/credentials").expanduser()
 
 
-def load_creds(account: dict) -> tuple[dict, Path | None]:
+def candidates(account: dict) -> list[tuple[dict, Path | None]]:
+    """Credentials to try, in order: cloud variable, the Workspace MCP login (shared),
+    then udb's own login."""
+    from ...core.secrets import WORKSPACE_DIR
+
+    out: list[tuple[dict, Path | None]] = []
     raw = secret_from_env(account)
     if raw:
-        return json.loads(raw), None
-    path = secret_path(account)
-    if not path.exists():
-        legacy = LEGACY_DIR / f"{account.get('address')}.json"
-        if legacy.exists():
-            return json.loads(legacy.read_text(encoding="utf-8")), legacy
-        raise MailError(f"no credentials for {account['id']}. Run: udb mail login {account['id']}")
-    return json.loads(path.read_text(encoding="utf-8")), path
+        out.append((json.loads(raw), None))
+    for path in (WORKSPACE_DIR / f"{account.get('address')}.json", secret_path(account)):
+        if path.exists():
+            out.append((json.loads(path.read_text(encoding="utf-8")), path))
+    return out
 
 
 def token_for(account: dict) -> str:
-    creds, path = load_creds(account)
-    return oauth.access_token(creds, save=path)
+    found = candidates(account)
+    if not found:
+        raise MailError(f"no Google login for {account.get('address')}. Run: "
+                        f"udb mail login {account['id']} (or log in through the Workspace MCP)")
+    last: Exception | None = None
+    for creds, path in found:
+        try:
+            return oauth.access_token(creds, save=path)
+        except oauth.GoogleError as exc:
+            last = exc
+    raise MailError(f"{account['id']}: every Google login failed ({last}). "
+                    f"Run: udb mail login {account['id']}")
 
 
 def _header(msg: dict, name: str) -> str:

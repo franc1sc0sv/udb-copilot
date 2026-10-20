@@ -394,6 +394,11 @@ TOOL_NAMES = [
 
 
 def main() -> None:
+    from ..core import secrets
+    try:
+        secrets.restore()
+    except Exception:  # noqa: BLE001
+        pass
     server.run()
 
 
