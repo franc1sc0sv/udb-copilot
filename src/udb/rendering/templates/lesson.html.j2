@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ titulo }}</title>
+{% include "_styles.html.j2" %}
+</head>
+<body>
+<div class="wrap">
+<main>
+  <header class="top">
+    <div class="kicker">{{ asignatura }}{% if clase %} · Clase {{ "%02d"|format(clase) }}{% endif %}</div>
+    <h1>{{ titulo }}</h1>
+    <div class="meta">{{ fecha }}{% if fuentes %} · {{ fuentes|length }} fuentes citadas{% endif %}</div>
+  </header>
+  {{ contenido | safe }}
+</main>
+<aside>
+  <h2>Fuentes</h2>
+  {% if fuentes %}
+    {% for f in fuentes %}
+    <div class="fuente {{ 'model' if f.model else '' }}" id="f-{{ f.key }}">
+      <div class="id">{{ f.source }}</div>
+      <div class="loc">{{ f.loc }}</div>
+      <div class="q">{% if f.model %}{{ f.reason }}{% else %}“{{ f.quote }}”{% endif %}</div>
+      {% if f.url %}<a class="ir" href="{{ f.url }}" target="_blank" rel="noopener">Ver en la clase original ↗</a>{% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="meta">Esta lección no tiene citas todavía.</p>
+  {% endif %}
+</aside>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var dark = false;
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral",
+                         securityLevel: "loose" });
+  }
+  document.querySelectorAll(".cita").forEach(function (el) {
+    el.addEventListener("click", function () {
+      var key = el.dataset.key;
+      document.querySelectorAll(".cita.on").forEach(function (n) { n.classList.remove("on"); });
+      document.querySelectorAll(".fuente.on").forEach(function (n) { n.classList.remove("on"); });
+      el.classList.add("on");
+      var card = document.getElementById("f-" + key);
+      if (card) { card.classList.add("on"); card.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Agenda de evaluaciones · {{ today.isoformat() }}</title>
+<style>
+:root { color-scheme: light; --bg:#f6f5f2; --card:#fff; --fg:#1d1c1a; --muted:#6b6862;
+  --line:#e6e3dd; --accent:#7a4b2a; --ok:#2f7d4f; --ok-bg:#e8f4ed; --warn:#a15c00;
+  --warn-bg:#fdf0dc; --bad:#b3261e; --bad-bg:#fbe9e7; --info:#2b5fa5; --info-bg:#e8f0fa;
+  --idle-bg:#efede8; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+.wrap { max-width:1180px; margin:0 auto; padding:32px 24px 90px; }
+header h1 { font-size:30px; margin:4px 0 2px; letter-spacing:-.02em; }
+.kicker { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+.sub { color:var(--muted); margin:0 0 22px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:22px; }
+.kpi { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+.kpi b { display:block; font-size:30px; line-height:1.1; letter-spacing:-.02em; }
+.kpi span { color:var(--muted); font-size:13px; }
+.kpi.bad b { color:var(--bad); } .kpi.warn b { color:var(--warn); } .kpi.ok b { color:var(--ok); }
+.alerts { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px 16px; margin-bottom:22px; }
+.alert { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); align-items:baseline; }
+.alert:last-child { border-bottom:0; }
+.dot { width:9px; height:9px; border-radius:50%; flex:none; transform:translateY(-1px); }
+.dot.bad { background:var(--bad); } .dot.warn { background:var(--warn); }
+.tag { font:600 11px/1 ui-sans-serif,system-ui,sans-serif; padding:3px 6px; border-radius:5px;
+  background:var(--idle-bg); color:var(--muted); letter-spacing:.04em; }
+.tabs { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
+.subject { background:var(--card); border:1px solid var(--line); border-radius:16px; margin:0 0 20px; overflow:hidden; }
+.subject > summary { cursor:pointer; list-style:none; padding:16px 20px; display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.subject > summary::-webkit-details-marker { display:none; }
+.subject h2 { margin:0; font-size:20px; letter-spacing:-.01em; }
+.code { font:700 13px/1 ui-monospace,monospace; background:var(--accent); color:#fff; padding:5px 8px; border-radius:6px; }
+.body { padding:0 20px 18px; }
+h3 { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+  margin:18px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--line); }
+.row { display:grid; grid-template-columns:96px 1fr auto; gap:14px; padding:11px 0; border-bottom:1px solid var(--line); align-items:start; }
+.row:last-child { border-bottom:0; }
+.date { font-weight:700; line-height:1.25; }
+.date small { display:block; font-weight:500; color:var(--muted); font-size:12px; }
+.title { font-weight:600; }
+.meta { color:var(--muted); font-size:13px; margin-top:2px; }
+.meta .alert-line { color:var(--warn); }
+.meta .bad-line { color:var(--bad); }
+.pills { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.pill { font-size:12px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+.pill.w { background:var(--info-bg); color:var(--info); }
+.pill.submitted { background:var(--ok-bg); color:var(--ok); }
+.pill.pending,.pill.not-published,.pill.exam { background:var(--warn-bg); color:var(--warn); }
+.pill.no-record,.pill.late { background:var(--bad-bg); color:var(--bad); }
+.pill.days { background:var(--idle-bg); color:var(--fg); }
+.pill.days.soon { background:var(--bad-bg); color:var(--bad); }
+.empty { color:var(--muted); padding:8px 0; font-style:italic; }
+details.more { margin-top:14px; } details.more > summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.quote { border-left:3px solid var(--line); padding:2px 12px; color:#3b3935; margin:8px 0; font-size:13px; }
+.sources { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
+.src { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; font-size:13px; }
+.src b { display:flex; gap:8px; align-items:center; }
+.src.fail { border-color:#e8b4ae; } .src small { color:var(--muted); word-break:break-word; }
+.mail { padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+.mail:last-child { border-bottom:0; }
+.bar { display:flex; height:12px; border-radius:6px; overflow:hidden; background:var(--idle-bg); margin:6px 0; }
+.bar i { display:block; } .bar .g { background:var(--ok); } .bar .w { background:#e0a84a; } .bar .f { background:#c9c5bd; }
+.legend { font-size:12px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; }
+.notice { padding:7px 0; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:baseline; }
+.notice:last-child { border-bottom:0; }
+footer { color:var(--muted); font-size:12px; margin-top:28px; }
+@media (max-width:700px) { .row { grid-template-columns:1fr; } .pills { justify-content:flex-start; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+{% macro pills(it) -%}
+  <span class="pill w">{{ it.weight }}%</span>
+  {% if it.late %}<span class="pill late">vencida sin entrega</span>
+  {% else %}<span class="pill {{ it.state }}">{{ {'submitted':'entregada','pending':'sin entrega','not-published':'aún no publicada','no-record':'sin registro en Moodle','exam':'prueba sincrónica'}[it.state] }}</span>{% endif %}
+  {% if it.bucket == 'upcoming' %}<span class="pill days {{ 'soon' if it.days <= 3 and it.state != 'submitted' }}">{{ 'hoy' if it.days == 0 else ('mañana' if it.days == 1 else 'en %d d' % it.days) }}</span>{% endif %}
+{%- endmacro %}
+{% macro item(it) -%}
+<div class="row">
+  <div class="date">{{ fmt(it.end) }}<small>{% if it.start %}desde {{ fmt(it.start) }}{% else %}{{ {'assignment':'entrega','exam':'prueba','forum':'foro','project':'proyecto'}.get(it.kind, it.kind) }}{% endif %}</small></div>
+  <div>
+    <div class="title">{{ it.label }}</div>
+    <div class="meta">
+      {% if it.proof %}Ruta p. {{ it.proof.page }} · fragmento {{ it.proof.chunk_id }}{% else %}<span class="bad-line">La ruta ya no respalda esta fecha: revisar.</span>{% endif %}
+      {% if it.moodle %} · Moodle cierra {{ fmt(it.moodle_due) }}{% endif %}
+      {% if it.local_status %} · carpeta local: {{ it.local_status }}{% endif %}
+      {% if it.calendar %} · en calendario{% elif it.no_calendar %} · <span class="alert-line">sin evento en calendario</span>{% endif %}
+    </div>
+    {% if it.files %}<div class="meta">Subido: {{ it.files | join(', ') }}{% if it.grade %} · nota {{ it.grade }}{% endif %}</div>{% endif %}
+    {% if it.override %}<div class="meta alert-line">Entregada por {{ it.override.by }} (dicho por ti, no consta en Moodle).</div>{% endif %}
+    {% if it.mismatch %}<div class="meta alert-line">Fecha distinta: la ruta dice {{ fmt(it.end) }}, Moodle {{ fmt(it.moodle_due) }}. Confirma con el docente cuál rige.</div>{% endif %}
+    {% if it.note %}<div class="meta">{{ it.note }}</div>{% endif %}
+    {% if it.moodle %}<div class="meta"><a href="{{ it.moodle.url }}">abrir en Moodle</a></div>{% endif %}
+  </div>
+  <div class="pills">{{ pills(it) }}</div>
+</div>
+{%- endmacro %}
+
+<header>
+  <div class="kicker">Agenda de evaluaciones · ciclo 02-2026</div>
+  <h1>{{ fmt(today) }}</h1>
+  <p class="sub">Última semana desde el {{ fmt(week_start) }}. Generado {{ generated.strftime('%H:%M') }}. Solo cuenta lo que la ruta de aprendizaje marca como evaluado.</p>
+</header>
+
+{% set all_items = subjects | map(attribute='items') | sum(start=[]) %}
+{% set late = all_items | selectattr('late') | list %}
+{% set soon = all_items | selectattr('bucket','equalto','upcoming') | rejectattr('state','equalto','submitted') | selectattr('days','le',7) | list %}
+{% set week = all_items | selectattr('bucket','equalto','week') | list %}
+{% set pend = all_items | selectattr('bucket','equalto','upcoming') | rejectattr('state','equalto','submitted') | list %}
+<div class="kpis">
+  <div class="kpi {{ 'bad' if late }}"><b>{{ late | length }}</b><span>vencidas sin entrega</span></div>
+  <div class="kpi {{ 'warn' if soon }}"><b>{{ soon | length }}</b><span>vencen en 7 días</span></div>
+  <div class="kpi"><b>{{ pend | length }}</b><span>evaluaciones por delante</span></div>
+  <div class="kpi ok"><b>{{ week | length }}</b><span>evaluadas la última semana</span></div>
+</div>
+
+{% if alerts %}
+<h3>Alertas</h3>
+<div class="alerts">
+{% for a in alerts %}<div class="alert"><span class="dot {{ a.level }}"></span><span><span class="tag">{{ a.subject }}</span> {{ a.text }}</span></div>{% endfor %}
+</div>
+{% endif %}
+
+{% for s in subjects %}
+<details class="subject" open>
+  <summary><span class="code">{{ s.code }}</span><h2>{{ s.name }}</h2>
+    <span class="tag">{{ s.weight_total }}% en la ruta</span></summary>
+  <div class="body">
+    {% set wk = s['items'] | selectattr('bucket','equalto','week') | list %}
+    {% set nx = s['items'] | selectattr('bucket','equalto','upcoming') | list %}
+    {% set old = s['items'] | selectattr('bucket','equalto','before') | list %}
+    <h3>Última semana</h3>
+    {% for it in wk %}{{ item(it) }}{% else %}<div class="empty">Nada evaluado entre el {{ fmt(week_start) }} y hoy.</div>{% endfor %}
+    <h3>Próximas</h3>
+    {% for it in nx %}{{ item(it) }}{% else %}<div class="empty">No quedan evaluaciones.</div>{% endfor %}
+    <h3>Reparto de la nota</h3>
+    {% set b = s.breakdown %}
+    <div class="bar"><i class="g" style="width:{{ b.graded }}%"></i><i class="w" style="width:{{ b.waiting }}%"></i><i class="f" style="width:{{ b.future }}%"></i></div>
+    <div class="legend"><span>{{ b.graded | round | int }}% con nota</span><span>{{ b.waiting | round | int }}% entregado o pasado, sin nota</span><span>{{ b.future | round | int }}% por jugar</span></div>
+    <div class="meta" style="margin-top:6px">
+      Llevas {{ '%.2f' % b.earned }} de 10 puntos.
+      {% if b.status == 'passed' %}Con eso ya alcanzas la nota mínima de {{ b.passing }}.
+      {% elif b.status == 'impossible' %}<span class="bad-line">Con lo que queda ya no alcanzas {{ b.passing }}.</span>
+      {% elif b.status == 'in-play' %}Necesitas promedio {{ '%.1f' % b.needed }} en el {{ (b.total - b.graded) | round | int }}% restante para llegar a {{ b.passing }} (mínimo que confirmaste, no sale de la ruta).{% endif %}
+    </div>
+    {% if s.notices %}<h3>Avisos de la ruta</h3>
+    {% for n in s.notices %}<div class="notice"><span class="dot {{ n.level }}"></span><span>{{ n.text }} <span class="tag">p. {{ n.pages | join(', ') }}</span></span></div>{% endfor %}{% endif %}
+    <h3>Publicado en Moodle</h3>
+    {% if s.feed.announcements %}{% for a in s.feed.announcements[:3] %}<div class="notice"><span class="dot warn"></span><span><b>{{ a.topic }}</b> · {{ fmt(a.date) }}<br>{{ a.text }}</span></div>{% endfor %}
+    {% else %}<div class="meta">Sin anuncios del docente en el foro Avisos.</div>{% endif %}
+    {% for f in s.feed.forum_posts %}<div class="notice"><span class="dot warn"></span><span><b>{{ f.topic }}</b> · {{ f.forum }} · {{ fmt(f.date) }} · {{ f.author }} · {{ f.replies }} resp.<br>{{ f.text }}</span></div>{% endfor %}
+    {% if s.feed.group_threads %}<div class="meta">{{ s.feed.group_threads }} mensajes recientes de formación de grupos.</div>{% endif %}
+    {% if s.new %}<div class="meta">Actualizado en Moodle hace menos de 14 días: {% for i in s.new %}{{ i.label }} ({{ fmt(i.published) }}){{ ', ' if not loop.last }}{% endfor %}.</div>{% endif %}
+    {% set old_open = old | selectattr('late') | list %}
+    {% if old_open %}<h3>Atrasadas (antes de la última semana)</h3>{% for it in old_open %}{{ item(it) }}{% endfor %}{% endif %}
+    {% set old_done = old | rejectattr('late') | list %}
+    {% if old_done or s.extras or s.radar or s.gaps %}
+    <details class="more"><summary>Más fuentes de esta materia</summary>
+      {% if old_done %}<h3>Ya pasaron</h3>{% for it in old_done %}{{ item(it) }}{% endfor %}{% endif %}
+      {% if s.extras %}<h3>En Moodle, fuera de la ruta (no evaluadas)</h3>
+        {% for e in s.extras %}<div class="row"><div class="date">{{ fmt(e.due) if e.due else 'sin fecha' }}</div>
+          <div><div class="title">{{ e.name }}</div><div class="meta">{{ e.type }} · <a href="{{ e.url }}">Moodle</a></div></div>
+          <div class="pills"><span class="pill {{ 'submitted' if e.status == 'submitted' else 'pending' }}">{{ {'submitted':'entregada','draft':'borrador','not-submitted':'sin entrega'}.get(e.status, e.status) }}</span></div></div>{% endfor %}{% endif %}
+      {% if s.radar %}<h3>Lo que dijo el docente en clase</h3>
+        {% for r in s.radar %}<div class="quote">«{{ r.quote }}» <span class="meta">{{ r.recording }} · {{ r.t // 60 }}:{{ '%02d' % (r.t % 60) }}</span></div>{% endfor %}{% endif %}
+      {% if s.gaps %}<h3>Fechas de la ruta que el plan no explica (revisar)</h3>
+        {% for g in s.gaps %}<div class="quote"><b>{{ g.date }}</b> · p. {{ g.page }}: …{{ g.context }}…</div>{% endfor %}{% endif %}
+    </details>{% endif %}
+  </div>
+</details>
+{% endfor %}
+
+{% if mails %}
+<details class="subject"><summary><h2>Correos recientes relacionados</h2><span class="tag">{{ mails | length }}</span></summary>
+<div class="body">{% for m in mails %}<div class="mail"><b>{{ m.subject }}</b><br><span class="meta">{{ m.sender }}{% if m.attachments %} · PDF: {{ m.attachments | join(', ') }}{% endif %}</span><br>{{ m.snippet }}</div>{% endfor %}</div></details>
+{% endif %}
+
+<h3>Fuentes consultadas</h3>
+<div class="sources">
+{% for s in sources %}<div class="src {{ '' if (s.ok or s.optional) else 'fail' }}"><b><span class="dot {{ 'ok' if s.ok else 'bad' }}" style="{{ 'background:var(--ok)' if s.ok else ('background:#b9b5ad' if s.optional) }}"></span>{{ s.name }}{% if s.optional and not s.ok %} <span class="tag">opcional</span>{% endif %}</b><small>{{ s.detail }}</small></div>{% endfor %}
+</div>
+<footer>Generado por <code>udb agenda</code>. Las fechas de la ruta se comprueban contra el PDF indexado en cada ejecución.</footer>
+</div>
+</body>
+</html>

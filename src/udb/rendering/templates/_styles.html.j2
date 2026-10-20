@@ -1,0 +1,113 @@
+<style>
+:root {
+  color-scheme: light;
+  --bg: #fbfaf8; --fg: #1d1c1a; --muted: #6b6862; --line: #e3e0da;
+  --card: #ffffff; --accent: #7a4b2a; --accent-soft: #f3e9e1;
+  --warn-bg: #fdf1e7; --warn-line: #d99a5c;
+  --model-bg: #eef2f7; --model-line: #7f9cc0;
+  --metodo-bg: #f0f4ee; --metodo-line: #6d8f5e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 17px/1.7 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+/* Ancho del texto y de la barra de fuentes. El bloque entero se centra, así
+   no queda hueco muerto entre el texto y las fuentes en pantallas anchas. */
+:root { --medida: 760px; --aside: 320px; }
+@media (min-width: 1500px) { :root { --medida: 880px; --aside: 360px; } }
+.wrap { display: grid; grid-template-columns: minmax(0,1fr) var(--aside); gap: 0;
+  max-width: calc(var(--medida) + var(--aside)); margin-inline: auto; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0,1fr);
+  max-width: var(--medida); } }
+/* Sin esto, una fórmula ancha de MathJax estira la columna entera: por defecto
+   un item de grid no encoge por debajo de su contenido mínimo. */
+main, aside { min-width: 0; }
+main { padding: 40px 44px 120px; max-width: var(--medida); }
+@media (max-width: 640px) { main { padding: 24px 18px 80px; } }
+header.top { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 26px; }
+.kicker { font: 600 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: 32px; line-height: 1.25; margin: 8px 0 6px; letter-spacing: -0.02em; }
+h2 { font: 600 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  margin: 38px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 19px; margin: 26px 0 8px; letter-spacing: -0.01em; }
+p, li { margin: 0 0 14px; }
+ol, ul { padding-left: 22px; }
+code { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+.tablewrap { overflow-x: auto; margin: 0 0 16px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+blockquote { margin: 0 0 16px; padding: 12px 16px; border-left: 3px solid var(--line);
+  color: var(--muted); }
+.callout { border-radius: 10px; padding: 14px 16px; margin: 0 0 18px;
+  border-left: 4px solid; font-size: 15px; }
+.callout .label { font: 700 11px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.callout p:last-child { margin-bottom: 0; }
+.callout.model { background: var(--model-bg); border-color: var(--model-line); }
+.callout.alerta { background: var(--warn-bg); border-color: var(--warn-line); }
+.callout.metodo { background: var(--metodo-bg); border-color: var(--metodo-line); }
+.cita { cursor: pointer; font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+  vertical-align: super; color: var(--accent); background: var(--accent-soft);
+  border-radius: 4px; padding: 2px 4px; margin-left: 2px; border: none; }
+.cita:hover, .cita.on { background: var(--accent); color: var(--bg); }
+aside { border-left: 1px solid var(--line); padding: 40px 24px; position: sticky;
+  top: 0; height: 100vh; overflow-y: auto; font: 14px/1.55 ui-sans-serif, system-ui, sans-serif; }
+@media (max-width: 900px) { aside { position: static; height: auto; border-left: none;
+  border-top: 1px solid var(--line); } }
+aside h2 { margin-top: 0; }
+.fuente { border: 1px solid var(--line); background: var(--card); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 10px; }
+.fuente.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.fuente .id { font: 600 11px/1.4 ui-monospace, monospace; color: var(--accent); }
+.fuente .loc { color: var(--muted); font-size: 12px; margin: 2px 0 6px; }
+.fuente .q { font-style: italic; }
+.fuente.model .id { color: var(--model-line); }
+details { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+  margin-bottom: 10px; background: var(--card); }
+summary { cursor: pointer; font-weight: 600; }
+/* position:relative ancla los nodos de accesibilidad de MathJax
+   (mjx-assistive-mml, invisibles) dentro del contenedor. Si no, sobresalen y
+   crean una barra de scroll horizontal fantasma. */
+mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%;
+  position: relative; }
+mjx-container[display="true"] { margin: 18px 0; padding: 4px 0; }
+.mermaid { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px; margin-bottom: 18px; overflow-x: auto; text-align: center; }
+.meta { color: var(--muted); font: 13px/1.5 ui-sans-serif, system-ui, sans-serif; }
+</style>
+<style>
+.fuente .ir { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--accent);
+  text-decoration: none; border-bottom: 1px solid var(--accent); }
+.fuente .ir:hover { opacity: .75; }
+
+/* La barra cruza toda la pantalla, pero su contenido se alinea con el texto
+   del artículo, que va centrado. */
+.unidad-nav { position: sticky; top: 0; z-index: 20; background: var(--bg);
+  border-bottom: 1px solid var(--line); display: flex;
+  gap: 6px; flex-wrap: wrap; align-items: center;
+  padding: 10px max(20px, calc((100% - var(--medida) - var(--aside)) / 2 + 44px)); }
+.unidad-nav .marca { font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-right: 10px; }
+.unidad-nav button { font: inherit; font-size: 13px; cursor: pointer; padding: 6px 12px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+  color: var(--fg); }
+.unidad-nav button.on { background: var(--accent); color: var(--bg);
+  border-color: var(--accent); }
+.pagina[hidden] { display: none !important; }
+.pasos { display: flex; justify-content: space-between; gap: 12px; margin: 40px 0 10px;
+  padding-top: 20px; border-top: 1px solid var(--line); }
+.pasos button { font: inherit; font-size: 13px; cursor: pointer; padding: 8px 14px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+.pasos button[disabled] { opacity: .35; cursor: default; }
+</style>

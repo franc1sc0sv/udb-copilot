@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Estado de las clases</title>
+<style>
+:root { color-scheme: light; --bg:#fbfaf8; --fg:#1d1c1a; --muted:#6b6862; --line:#e3e0da;
+  --card:#fff; --accent:#7a4b2a; --ok:#4f7a3a; --bad:#b23a2b; --warn:#b9772b; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 80px; }
+h1 { font-size: 24px; margin: 0 0 4px; } .muted { color: var(--muted); }
+section { background: var(--card); border:1px solid var(--line); border-radius:12px;
+  padding: 16px 18px; margin: 22px 0; }
+h2 { margin: 0 0 6px; font-size: 18px; }
+.next { margin: 8px 0 12px; } .next code { background:#f3e9e1; padding:2px 6px; border-radius:6px; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; }
+.ok { color: var(--ok); } .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); }
+.stage { font-weight: 600; }
+.stage.complete { color: var(--ok); } .stage.write-explanation, .stage.method-in-conflict,
+.stage.fix-verify-errors { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+<h1>Estado de las clases</h1>
+<p class="muted">Generado {{ generated }} con <code>udb status</code>. Sin conexión: lee el vault, el registro y el último <code>udb verify</code>.</p>
+{% set labels = {'no material':'sin material','write explanation':'falta explicación','method in conflict':'método en conflicto','extract method':'falta método','fix verify errors':'errores de citas','solve assignment':'falta la tarea','render lesson':'falta la lección','complete':'completa'} %}
+{% for s in subjects %}
+<section>
+  <h2>{{ s.code }} · {{ s.name }}</h2>
+  <div class="muted">{{ s.classes|length }} clases · {{ s.sources }} fuentes ({{ s.unclassified_sources }} sin clase) · {{ s.concepts }} conceptos</div>
+  {% if s.next %}<div class="next">Siguiente paso: <code>{{ s.next }}</code></div>{% endif %}
+  {% if s.hint %}<div class="next warn">{{ s.hint }}</div>{% endif %}
+  {% if s.classes %}
+  <div class="wrap"><table>
+    <tr><th>#</th><th>fecha</th><th>título</th><th>material</th><th>grabación</th><th>explicación</th><th>método</th><th>ejercicios</th><th>tarea</th><th>lección</th><th>citas</th><th>estado</th></tr>
+    {% for r in s.classes %}
+    <tr>
+      <td>{{ '%02d' % r['class'] }}</td><td>{{ r.date }}</td><td>{{ r.title }}</td>
+      <td>{{ r.material }}</td><td>{{ r.recording }}</td>
+      <td class="{{ 'ok' if r.explanation == 'written' else 'bad' }}">{{ {'written':'escrita','template':'plantilla','missing':'falta'}[r.explanation] }}</td>
+      <td>{% for m in r.methods %}<span class="{{ 'bad' if m.status == 'conflict' else ('ok' if m.status == 'confirmed' else 'warn') }}">{{ m.slug }}</span>{{ ', ' if not loop.last }}{% else %}—{% endfor %}</td>
+      <td>{{ r.exercises|length or '—' }}</td>
+      <td>{{ {'n/a':'no aplica','written':'resuelta','missing':'falta'}[r.assignment] }}{% for t in r.tasks %} · {{ t.status }}{% endfor %}</td>
+      <td class="{{ 'ok' if r.lesson else '' }}">{{ 'sí' if r.lesson else '—' }}</td>
+      <td class="{{ 'bad' if r.verify_errors else '' }}">{{ r.verify_errors }} / {{ r.verify_warnings }}</td>
+      <td class="stage {{ r.stage|replace(' ', '-') }}">{{ labels[r.stage] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</section>
+{% endfor %}
+</main>
+</body>
+</html>

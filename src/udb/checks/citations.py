@@ -1,0 +1,232 @@
+"""Citation checks: every anchor points at text that really is in the source.
+
+What is verified: the source is registered and current, and the quote is in
+the derived text at the stated page, time window or snapshot. What is not:
+that the sentence says what the quote supports. `weak-support` flags the
+cases where the two share almost no words.
+"""
+import re
+from pathlib import Path
+
+from ..core import anchors, lang, notes
+from ..core.findings import Finding
+from ..core.paths import relative, subject_codes, subject_dir, subject_of_path
+from ..core.text import contains, count_occurrences, normalize
+from ..vault import index, registry
+
+MODEL_BUDGET = 0.30
+WINDOW_SLACK = 20.0
+MIN_QUOTE_WORDS = 4
+MIN_QUOTE_CHARS = 20
+AMBIGUOUS_AFTER = 3
+
+
+def quote_in_pages(code: str, source_id: str, quote: str, page: int | None) -> bool:
+    pages = index.load_pages(code, source_id)
+    if not pages:
+        return False
+    if page is None:
+        return any(contains(p["text"], quote) for p in pages)
+    by_page = {p["page"]: p["text"] for p in pages}
+    if contains(by_page.get(page, ""), quote):
+        return True
+    # A quote may run across the page break; vault_quote hands out chunks that
+    # span two pages and labels them with the first.
+    return contains(by_page.get(page, "") + " " + by_page.get(page + 1, ""), quote)
+
+
+def quote_in_window(code: str, source_id: str, quote: str, window: tuple[float, float]) -> bool:
+    segments = index.load_segments(code, source_id)
+    start, end = window
+    text = " ".join(s.get("text", "") for s in segments
+                    if s.get("end", 0) >= start - WINDOW_SLACK
+                    and s.get("start", 0) <= end + WINDOW_SLACK)
+    return bool(segments) and contains(text, quote)
+
+
+def quote_in_snapshot(code: str, source_id: str, quote: str) -> bool:
+    if index.load_pages(code, source_id):
+        return quote_in_pages(code, source_id, quote, None)
+    try:
+        path = registry.source_file(code, source_id)
+    except KeyError:
+        return False
+    return path.exists() and contains(path.read_text(encoding="utf-8", errors="replace"), quote)
+
+
+def occurrences(code: str, source_id: str, quote: str) -> int:
+    return sum(count_occurrences(p["text"], quote) for p in index.load_pages(code, source_id))
+
+
+def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
+    if anchor.error:
+        head, _, detail = anchor.error.partition(": ")
+        return [Finding(path, anchor.line, head, detail or anchor.error)]
+    if anchor.is_model:
+        basis = anchor.fields["basis"]
+        if not registry.lookup(basis):
+            return [Finding(path, anchor.line, "unjustified-model-claim",
+                            f"basis={basis} is not in the registry")]
+        return []
+
+    source_id = anchor.source_id
+    owner = registry.subject_of(source_id)
+    record = registry.get(owner, source_id)
+    if not record:
+        return [Finding(path, anchor.line, "unknown-source",
+                        f"{source_id} is not in the {owner} registry")]
+    if record.get("superseded_by"):
+        return [Finding(path, anchor.line, "superseded-source",
+                        f"{source_id} was replaced by {record['superseded_by']}; cite the new one")]
+
+    quote = anchor.quote
+    out: list[Finding] = []
+    if len(quote.split()) < MIN_QUOTE_WORDS and len(quote) < MIN_QUOTE_CHARS:
+        out.append(Finding(path, anchor.line, "trivial-quote",
+                           f'quote "{quote}" is too short to prove anything; quote a full phrase',
+                           level="warning"))
+
+    if "t" in anchor.fields:
+        window = anchors.parse_window(anchor.fields["t"])
+        if not window:
+            return out + [Finding(path, anchor.line, "malformed-anchor",
+                                  f"t={anchor.fields['t']} is not HH:MM:SS-HH:MM:SS")]
+        if not quote_in_window(owner, source_id, quote, window):
+            out.append(Finding(path, anchor.line, "quote-not-in-window",
+                               f'{source_id} t={anchor.fields["t"]} does not contain: "{quote}"'))
+        return out
+
+    if "url" in anchor.fields and "page" not in anchor.fields:
+        if not quote_in_snapshot(owner, source_id, quote):
+            out.append(Finding(path, anchor.line, "quote-not-in-snapshot",
+                               f'the saved copy of {source_id} does not contain: "{quote}"'))
+        return out
+
+    raw_page = anchor.fields.get("page", "")
+    page = int(raw_page) if raw_page.isdigit() else None
+    if not quote_in_pages(owner, source_id, quote, page):
+        where = f"p.{page}" if page else "the document"
+        out.append(Finding(path, anchor.line, "quote-not-found",
+                           f'{source_id} {where} does not contain: "{quote}"'))
+    elif page is None and occurrences(owner, source_id, quote) > AMBIGUOUS_AFTER:
+        out.append(Finding(path, anchor.line, "ambiguous-quote",
+                           f'"{quote}" appears in many places of {source_id}; add page=',
+                           level="warning"))
+    return out
+
+
+MATH_RE = re.compile(r"\\\[.*?\\\]|\\\(.*?\\\)|\$\$.*?\$\$|\$[^$\n]+?\$", re.DOTALL)
+REF_SPLIT_RE = re.compile(r"\[\^([A-Za-z0-9_-]+)\]")
+
+
+def _stems(text: str) -> set[str]:
+    """Five-letter stems of the prose words (formulas removed)."""
+    prose = MATH_RE.sub(" ", text)
+    return {w[:5] for w in re.findall(r"[a-z]{5,}", normalize(prose))}
+
+
+def check_support(note: notes.Note, definitions: dict[str, anchors.Anchor]) -> list[Finding]:
+    """The sentence and its quote share no word stem: probably the wrong quote.
+
+    Each reference is compared with the sentence right before it, not the
+    whole paragraph, and formulas are ignored on both sides.
+    """
+    out = []
+    for block in note.blocks:
+        parts = REF_SPLIT_RE.split(block.text)
+        for i in range(1, len(parts), 2):
+            anchor = definitions.get(parts[i])
+            if not anchor or anchor.is_model or anchor.error:
+                continue
+            sentence = re.split(r"(?<=[.!?:])\s+", parts[i - 1].strip())[-1]
+            claim, quote = _stems(sentence), _stems(anchor.quote)
+            if len(claim) >= 4 and len(quote) >= 4 and not claim & quote:
+                out.append(Finding(note.path, block.start_line, "weak-support",
+                                   f"[^{parts[i]}] shares no word with the sentence it backs: "
+                                   f'"{sentence[:60]}"', level="warning"))
+    return out
+
+
+def check_coverage(note: notes.Note, mode: str) -> list[Finding]:
+    if mode == "free":
+        return []
+    table = lang.get()
+    exempt = set(table["exempt_always"])
+    if mode == "normal":
+        exempt |= set(table["exempt_normal"])
+    section_level = set(table["section_level"])
+    findings = []
+    model_words = claim_words = 0
+    by_section: dict[str, list[notes.Block]] = {}
+    for block in note.blocks:
+        section = block.section.strip().lower()
+        if section in exempt or block.is_table:
+            continue
+        words = len(block.text.split())
+        claim_words += words
+        if block.callout_kind == "model":
+            model_words += words
+        if section in section_level:
+            by_section.setdefault(section, []).append(block)
+            continue
+        if not block.refs:
+            findings.append(Finding(note.path, block.start_line, "uncited-paragraph",
+                                    f'no citation: "{block.lines[0].strip()[:70]}"'))
+    for section, blocks in by_section.items():
+        if not any(b.refs for b in blocks):
+            findings.append(Finding(note.path, blocks[0].start_line, "uncited-section",
+                                    f"section '{section}' has no citation at all"))
+    if claim_words and model_words / claim_words > MODEL_BUDGET:
+        pct = round(100 * model_words / claim_words)
+        findings.append(Finding(note.path, 1, "model-content-over-budget",
+                                f"{pct}% of the words were added by Claude; the limit is "
+                                f"{round(MODEL_BUDGET * 100)}%", level="warning"))
+    return findings
+
+
+def default_mode(path: Path) -> str:
+    parts = {p.lower() for p in path.parts}
+    return "strict" if {"concepts", "methods", "exercises"} & parts else "normal"
+
+
+def check_note(path: Path) -> list[Finding]:
+    code = subject_of_path(path)
+    if not code or notes.is_stub(path):
+        return []
+    text = path.read_text(encoding="utf-8")
+    rel = relative(path)
+    note = notes.parse(rel, text)
+    definitions, used = anchors.parse(text)
+    findings: list[Finding] = []
+    for key in sorted(used - set(definitions)):
+        line = next((i for i, ln in enumerate(text.splitlines(), 1) if f"[^{key}]" in ln), 1)
+        findings.append(Finding(rel, line, "undefined-anchor", f"[^{key}] is used but never defined"))
+    for key, anchor in definitions.items():
+        findings.extend(check_anchor(code, anchor, rel))
+        if key not in used:
+            findings.append(Finding(rel, anchor.line, "unused-anchor",
+                                    f"[^{key}] is defined but never used", level="warning"))
+    mode = str(note.front.get("citations", default_mode(path)))
+    findings.extend(check_coverage(note, mode))
+    findings.extend(check_support(note, definitions))
+    return findings
+
+
+NOTE_FOLDERS = ("classes", "concepts", "methods", "exercises", "notes")
+
+
+def note_paths(code: str | None = None) -> list[Path]:
+    out: list[Path] = []
+    for c in [code] if code else subject_codes():
+        root = subject_dir(c)
+        for folder in NOTE_FOLDERS:
+            out.extend(sorted((root / folder).rglob("*.md")))
+    return out
+
+
+def check_paths(paths: list[Path]) -> list[Finding]:
+    return [f for p in paths if p.exists() and p.suffix == ".md" for f in check_note(p)]
+
+
+def check_subject(code: str | None = None) -> list[Finding]:
+    return check_paths(note_paths(code))

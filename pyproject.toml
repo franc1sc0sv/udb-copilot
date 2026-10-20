@@ -1,0 +1,66 @@
+[project]
+name = "udb-copilot"
+version = "0.1.0"
+description = "Study vault with mandatory citations, wired to the UDB virtual classroom and Claude Code"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Francisco" }]
+# Capped because the GPU transcription extra (torch with CUDA) has no wheels for 3.14 yet.
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "pyyaml>=6.0",
+    "pypdf>=4.2",
+    "python-pptx>=0.6.23",
+    "python-docx>=1.1",
+    "jinja2>=3.1",
+    "beautifulsoup4>=4.12",
+    "markdown>=3.6",
+    "httpx>=0.27",
+    "mcp>=2.2,<3",
+]
+
+[project.optional-dependencies]
+agent = ["claude-agent-sdk>=0.2"]
+outlook = ["msal>=1.28"]
+ocr = ["rapidocr-onnxruntime>=1.3"]
+asr = [
+    "torch>=2.9",
+    "transformers>=4.44",
+    "accelerate>=0.33",
+    "soundfile>=0.12",
+    "faster-whisper>=1.0",
+]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+udb = "udb.cli:main"
+
+# The RTX 50 series (Blackwell, sm_120) needs CUDA 12.8+ wheels. Only the asr
+# extra pulls torch, so this index is never touched by the core install.
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/udb"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

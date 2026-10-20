@@ -1,0 +1,119 @@
+"""Per-subject source registry (`vault/<SUBJECT>/registry.jsonl`)."""
+import hashlib
+import json
+import re
+from datetime import date
+from pathlib import Path
+
+from ..core import schema
+from ..core.paths import registry_path, sources_dir, subject_dir
+
+KINDS = ("course", "class", "external", "exercise")
+ID_RE = re.compile(r"^SRC-([A-Z0-9]+)-(\d{4})$")
+
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def read_all(code: str) -> list[dict]:
+    path = registry_path(code)
+    if not path.exists():
+        return []
+    return [schema.normalize_record(json.loads(line))
+            for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def get(code: str, source_id: str) -> dict | None:
+    return next((r for r in read_all(code) if r["id"] == source_id), None)
+
+
+def lookup(source_id: str) -> dict | None:
+    """Record for any source id, whatever its subject."""
+    try:
+        return get(subject_of(source_id), source_id)
+    except ValueError:
+        return None
+
+
+def next_id(code: str) -> str:
+    used = [int(m.group(2)) for r in read_all(code) if (m := ID_RE.match(r["id"]))]
+    return f"SRC-{code.upper()}-{max(used, default=0) + 1:04d}"
+
+
+def find_by_hash(code: str, digest: str) -> dict | None:
+    return next((r for r in read_all(code)
+                 if r.get("sha256") == digest and not r.get("superseded_by")), None)
+
+
+def append(code: str, record: dict) -> dict:
+    path = registry_path(code)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return record
+
+
+def rewrite(code: str, records: list[dict]) -> None:
+    path = registry_path(code)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records),
+                    encoding="utf-8")
+
+
+def ensure_subject(code: str) -> None:
+    base = subject_dir(code)
+    for sub in ("sources", "derived/text", "derived/transcripts", "classes",
+                "concepts", "methods", "exercises"):
+        (base / sub).mkdir(parents=True, exist_ok=True)
+    registry_path(code).touch()
+
+
+def register(code: str, path: Path, kind: str, title: str | None = None,
+             url: str | None = None, class_number: int | None = None,
+             moodle_id: str | None = None) -> dict:
+    if kind not in KINDS:
+        raise ValueError(f"invalid kind: {kind} (use one of {', '.join(KINDS)})")
+    ensure_subject(code)
+    path = Path(path).expanduser().resolve()
+    digest = sha256(path)
+    existing = find_by_hash(code, digest)
+    if existing:
+        return existing
+
+    source_id = next_id(code)
+    dest = sources_dir(code) / f"{source_id}{path.suffix.lower()}"
+    if path != dest:
+        dest.write_bytes(path.read_bytes())
+    return append(code, {
+        "id": source_id,
+        "subject": code.upper(),
+        "kind": kind,
+        "title": title or path.stem,
+        "path": dest.relative_to(subject_dir(code)).as_posix(),
+        "original_name": path.name,
+        "url": url,
+        "class": class_number,
+        "moodle_id": moodle_id,
+        "sha256": digest,
+        "retrieved_at": date.today().isoformat(),
+        "superseded_by": None,
+    })
+
+
+def source_file(code: str, source_id: str) -> Path:
+    rec = get(code, source_id)
+    if not rec:
+        raise KeyError(f"unknown source: {source_id}")
+    return subject_dir(code) / rec["path"]
+
+
+def subject_of(source_id: str) -> str:
+    m = ID_RE.match(source_id)
+    if not m:
+        raise ValueError(f"invalid source id: {source_id}")
+    return m.group(1)

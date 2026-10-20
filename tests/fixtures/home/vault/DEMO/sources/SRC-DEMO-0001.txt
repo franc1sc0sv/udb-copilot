@@ -1,0 +1,5 @@
+La ley de Ohm relaciona tres magnitudes de un circuito: el voltaje, la corriente y la resistencia. El voltaje es igual a la corriente multiplicada por la resistencia.
+
+Para calcular la corriente se divide el voltaje entre la resistencia. Primero se identifican los datos del circuito. Después se despeja la incógnita. Por último se sustituyen los valores con sus unidades.
+
+El profesor dijo: "la unidad de resistencia es el ohmio". Un resistor de 10 ohmios con 20 voltios deja pasar 2 amperios.
