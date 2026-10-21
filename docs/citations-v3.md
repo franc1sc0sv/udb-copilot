@@ -2,19 +2,21 @@
 
 ## Status (2026-10-21)
 
-Built and tested: the paragraph rule (`repeated-citation` with `--fix`,
+All built. Checks: the paragraph rule (`repeated-citation` with `--fix`,
 `many-citations`), passage quotes from `vault_quote` (whole sentences, `exact=True`
 for literal definitions), `trivial-quote` under 8 words, `weak-support` against the
-whole paragraph, the three voices (`[!example]` and `[!analogy]` need no citation and
-sit outside the 30 % budget), material coverage (`source-not-used`,
-`pages-not-covered`, "material cubierto" in `udb status`), and board stills as
-citable chunks (`t=` + `frame=`, descriptions after `Figura:` not quotable).
+whole paragraph, `quote-drifted` (fuzzy re-anchoring, repaired by `--fix`), the
+three voices (`[!example]` and `[!analogy]` need no citation and sit outside the
+30 % budget), material coverage (`source-not-used`, `pages-not-covered`,
+"material cubierto" in `udb status`), and `udb verify --deep` (a Haiku judge,
+warnings only, cached). Sources: board stills as citable chunks (`t=` + `frame=`,
+descriptions after `Figura:` not quotable), the teacher's words in Moodle (pages,
+assignment instructions and files, teacher forum posts and messages) as `moodle`
+sources with versions, class assignment by title, course-page boilerplate left out
+of the index, unread embedded videos reported by `udb sources`, OCR in the base
+install. Reading: the citation card and the coverage strip in lesson pages.
+Migration of old notes: `/udb-tidy`.
 First run on the real vault removed 432 repeated references with no text change.
-
-Not built yet: re-anchoring with fuzzy match (`quote-drifted`), `udb verify --deep`,
-the citation card and coverage strip in lesson pages, `/udb-tidy`, and the
-ingestion items of section 7 (Moodle-native sources, class assignment, HTML
-cleanup, versions).
 
 Goal: notes a student can read and trust. Every idea of the teacher is there,
 every claim can be checked in one tap, and the reader always knows who is
@@ -262,10 +264,10 @@ with `t=` and `frame=` citations → `udb verify`.
 |---|---|
 | A quote in a note is literally in the source at that page | proven by `udb verify`, no model |
 | 1015 anchors re-located after re-extraction | done in v2 |
-| Paragraph says what the passage says | heuristic only (`weak-support`); `--deep` judge proposed |
-| Every page of the teacher's material is used | **not checked yet** (section 3) |
-| Forum posts and messages are citable | **not yet** (section 7) |
-| Embedded videos are read | **no** (section 9) |
+| Paragraph says what the passage says | heuristic (`weak-support`) plus the optional `--deep` judge |
+| Every page of the teacher's material is used | checked (`source-not-used`, `pages-not-covered`) |
+| Teacher forum posts and messages are citable | yes, `moodle` sources from `udb sync` |
+| Embedded videos are read | reported by `udb sources`; read with `udb recording process` |
 | Class recordings can be downloaded and transcribed | **untested** |
 | UDB lets a student consent to an own app | **unknown until first login** |
 | PaddleOCR-VL and Qwen3-VL run well on the RTX 5080 | **untested** |

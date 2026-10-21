@@ -2,52 +2,48 @@
 
 ```
 src/udb/
-  core/          settings (data home), paths, schema (canonical keys + legacy aliases),
-                 lang (words matched inside notes), notes, anchors, text, findings
-  vault/         registry, index (SQLite FTS5), ingest, classes, methods, ledger,
-                 scaffold (templates), figures
-  checks/        citations, clarity, coverage, exercises (method conformance)
-  integrations/  moodle/ (client, sync) · mail/ (base, gmail, outlook, imap)
-                 google/ (oauth, calendar, drive) · recordings/ (catalog, download,
-                 frames, radar, asr)
+  core/          settings (data home), paths, schema, lang (words matched inside notes),
+                 notes, anchors, text, chunking, findings, secrets
+  vault/         registry (sources, versions, classes), ingest (extract text, OCR, figures),
+                 index (SQLite FTS5), sources (health), classes, methods, ledger, scaffold
+  checks/        citations (anchors, paragraph rule, drift), coverage (topics, material),
+                 clarity, exercises (method conformance), deep (optional model judge)
+  moodle/        client (transport, read-only guard), reader (everything readable),
+                 sync (files and the teacher's words into the vault)
+  mail/          base, gmail, outlook, imap
+  google/        oauth, calendar, drive
+  media/         catalog (Teams + YouTube), download, asr (Whisper), frames (board stills),
+                 vision (Qwen3-VL), stream (Teams via the browser), browser, radar
   planning/      agenda, tasks, status, digest
-  rendering/     jinja, lesson, exercise, math_svg (+ vendor/render_math.cjs), diagrams,
-                 templates/
-  agent/         prompts (rules + subagents), guards (hooks), runner (Agent SDK)
-  server/        app (the `vault` MCP server)
+  rendering/     jinja, lesson (citation cards, coverage strip), exercise, math_svg,
+                 diagrams, views, templates/
+  claude/        setup (wires .claude/ and .mcp.json), prompts (rules + subagents),
+                 hooks (PreToolUse/PostToolUse/session/prompt), runner (Agent SDK)
+  server/        app (the `vault` MCP), moodle (the `moodle` MCP)
   cli/           the `udb` command, one module per area
   assets/claude/ skills and CLAUDE.md copied into the data home by `udb setup claude`
 ```
 
 ## Rules
 
-- **Layers point down.** `cli` and `server` call `planning`, `checks`, `vault` and
-  `integrations`; those call `core`. Nothing in `core` imports upward.
+- **Layers point down.** `cli` and `server` call `planning`, `checks`, `vault`, `moodle`,
+  `mail`, `google` and `media`; those call `core`. Nothing in `core` imports upward.
 - **CLI and MCP share functions.** A tool and a command never re-implement each
   other; both format what one function returns.
+- **One way per thing.** No legacy aliases, no second backend kept "just in case".
 - **No model in the facts.** Search, citations, checks, status, agenda and digest
-  are deterministic. A model only writes prose on top of them.
-- **Code is English, content is the student's language.** Keys, commands, tool
-  names and identifiers are English. Note text, section titles and generated
-  pages are Spanish; the words the checks match live in `core/lang.py`.
-- **Old data keeps working.** `core/schema.py` reads the pre-0.1 Spanish keys;
-  `udb migrate` rewrites them.
-- **Heavy dependencies are extras.** The core install has no torch, no browser
-  automation and no Agent SDK, so a cloud session installs in seconds.
+  are deterministic. A model writes prose, reads boards and, on request
+  (`verify --deep`), judges faithfulness as a warning.
+- **Code is English, content is the student's language.** Note text, section
+  titles and generated pages are Spanish; the words the checks match live in
+  `core/lang.py`.
+- **Moodle is read only.** `moodle.client` refuses any web-service call that is
+  not a pure read, for every caller.
+- **Heavy dependencies are extras** (`asr`, `vision`, `browser`, `agent`, `outlook`),
+  so a cloud session installs fast. OCR is in the base install.
 - **Fail closed.** The pre-tool hook blocks when `udb` is missing.
+- **No test suite.** Changes are checked by running `udb` against a real vault.
 
 ## The citation contract
 
-`vault_quote` is the only way to cite. It returns an anchor:
-
-```
-[^c1]: SRC-IRD-0003 | page=14 | quote="exact text"
-[^c2]: SRC-IRD-0007 | t=00:41:12-00:41:25 | quote="what the teacher said"
-[^c3]: MODEL | reason="why the material does not cover it" | basis=SRC-IRD-0003
-```
-
-`udb verify` checks that the source exists and is current, that the quote is in
-the derived text at that page (or the next one, for quotes across a page break)
-or time window, that quotes are not trivially short, that every paragraph is
-cited, and that model content stays under 30% of the words. It warns when a
-sentence and its quote share no word.
+`vault_quote` is the only way to cite. See [references.md](references.md).

@@ -31,16 +31,15 @@ registry.npmjs.org
 
 Add your IMAP host if you use one.
 
-**Environment variables** (only for you; never commit them):
+**Environment variables** (only for you; never commit them): one variable,
+`UDB_SECRETS`. On your computer run `udb cloud secrets` and paste its output as
+the value. It packs the Moodle token, mail and Google tokens and the Google
+Workspace MCP credentials; each cloud session unpacks them into the same files.
+Run it again only when you add an account or renew a token.
 
-| Variable | Value |
-|---|---|
-| `MOODLE_TOKEN` | the token from `~/.config/udb/moodle-token` on your computer |
-| `GMAIL_PERSONAL_JSON` | the content of `~/.config/udb/mail-personal.json` (name it as `credentials_env` says) |
-| `OUTLOOK_UDB_CACHE` | the content of `~/.config/udb/mail-udb.json`, base64-encoded |
-
-Never put your UDB password in the cloud: only the token. If a Google refresh
-token expires, run `udb mail login` again locally and update the variable.
+Never put your UDB password in the cloud: only the token. In a cloud session,
+`udb cloud check` shows whether the secrets were restored, the hosts are
+reachable and OCR works.
 
 **Setup script** (optional; the SessionStart hook does the same if you skip it):
 

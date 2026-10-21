@@ -19,7 +19,9 @@ every claim is cited and every exercise follows your teacher's method.
 | **Morning briefing** | Every day at 06:00: classes today, days left to every evaluation, what is due in 72 hours, new classroom activity and teacher mail. |
 | **Change alerts** | An email only when a teacher publishes or edits an assignment, posts an announcement or writes to you. |
 | **Ask from your phone** | "What's pending in IRD?", "Explain class 3 of AVM" — in a Claude Code cloud session. |
-| **Cited notes** | Class and concept notes in plain Spanish; every claim carries an anchor to the exact page or minute of the source, checked without a model. |
+| **Cited notes** | Class and concept notes in plain Spanish: one citation per paragraph, quoting the passage that backs it, checked without a model; every source of the class must be used. |
+| **Your whole classroom** | A read-only Moodle MCP: grades, forums, private messages, notifications, quizzes, assignment instructions. Nothing can submit or post. |
+| **Class videos** | YouTube embeds and downloadable recordings: Whisper on your GPU, a still of every complete board read by a vision model, citable by minute and board. View-only Teams recordings: Stream's transcript and the boards, read in udb's own Chrome. |
 | **The teacher's method** | Exercises are solved only with the procedure the teacher taught, step by step, as HTML cards with formulas rendered offline. |
 | **Status board** | One row per class: material, recording, explanation, method, exercises, lesson, citation errors, next step. |
 | **Many mail accounts** | Gmail, Outlook (university or personal) and any IMAP server, declared in one file. |
@@ -133,15 +135,15 @@ them from the variable named in `credentials_env`.
 
 | Area | Commands |
 |---|---|
-| Setup | `udb init`, `udb setup`, `udb setup claude`, `udb setup mathjax`, `udb migrate` |
-| Sources | `udb sources`, `udb sources fix`, `udb verify --fix` |
+| Setup | `udb init`, `udb setup`, `udb setup claude`, `udb setup mathjax`, `udb cloud secrets/check`, `udb browser login` |
+| Sources | `udb sources`, `udb sources fix`, `udb sources classes`, `udb verify --fix`, `udb verify --deep` |
 | Views | `udb view digest/status/agenda/tasks` (what Claude shows inline) |
-| Classroom | `udb moodle login/courses`, `udb sync`, `udb assignments`, `udb assignment fetch/submission` |
+| Classroom | `udb moodle login/courses/mcp`, `udb sync` (files + the teacher's words in Moodle), `udb assignments`, `udb assignment fetch/submission` |
 | Planning | `udb digest`, `udb agenda`, `udb status`, `udb tasks`, `udb task new`, `udb projects` |
 | Vault | `udb ingest`, `udb reindex`, `udb verify`, `udb coverage`, `udb figures`, `udb diagrams` |
 | Writing (with Claude) | `udb class new/write/lesson`, `udb method new/extract/list`, `udb note new`, `udb exercise`, `udb study`, `udb explain`, `udb ask` |
 | Mail and Drive | `udb mail add/accounts/login/search/attachments`, `udb drive upload/replace/download/trash` |
-| Recordings (local) | `udb recording discover/board/download/attach/transcribe/frames/radar/process` |
+| Recordings (local) | `udb recording discover/board/process/stream/stream-all/radar` (and the steps: `download/attach/transcribe/frames/read-boards`) |
 
 Run `udb <command> --help` for the details.
 
@@ -154,7 +156,8 @@ Run `udb <command> --help` for the details.
 4. **One diagram per note.**
 5. **Exercises are HTML step cards** with formulas rendered to SVG.
 
-`udb verify` checks all of this without a model; [docs/references.md](docs/references.md)
+`udb verify` checks all of this without a model (`--deep` adds an optional model
+judge); [docs/references.md](docs/references.md)
 explains how a citation is made and checked. The write hook runs the same
 checks on every file Claude writes and makes it fix the errors.
 
@@ -188,9 +191,12 @@ index/                            generated: search index, boards (not committed
 | Extra | For |
 |---|---|
 | `outlook` | Outlook / Microsoft 365 mail (msal) |
-| `agent` | `udb class write`, `udb study` and other commands that run Claude from the terminal |
-| `asr` | Transcribing class recordings on an NVIDIA GPU (CUDA 12.8+) |
-| `ocr` | Reading the text on recording frames |
+| `agent` | `udb verify --deep`, `udb class write`, `udb study` and other commands that run Claude |
+| `asr` | Transcribing class videos with Whisper on an NVIDIA GPU (CUDA 12.8+) |
+| `vision` | Reading board stills with Qwen3-VL on the GPU |
+| `browser` | udb's own Chrome for view-only Teams recordings (Playwright) |
+
+OCR for scanned PDFs and figures is part of the base install.
 
 ## Development
 
