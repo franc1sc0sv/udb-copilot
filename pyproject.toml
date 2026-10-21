@@ -43,6 +43,8 @@ vision = [
     "transformers>=4.57",
     "accelerate>=0.33",
 ]
+# udb's own Chrome for Stream recordings (drives an installed Google Chrome).
+browser = ["playwright>=1.48"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]

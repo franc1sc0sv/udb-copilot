@@ -165,6 +165,47 @@ def read_boards(recording_id: str, all_frames: bool = typer.Option(False, "--all
     console.print(f"[green]{n} boards read for {g['id']}.[/green]")
 
 
+@app.command("stream")
+def stream_cmd(recording_id: str,
+               boards: bool = typer.Option(True, help="Also take stills of the boards"),
+               read: bool = typer.Option(True, help="Read the boards with the local model")):
+    """A view-only Teams recording, end to end, in udb's own Chrome: transcript,
+    board stills (dense where an exercise is solved), board reading and radar."""
+    from ..integrations.recordings import browser, catalog, stream
+    g = guarded(catalog.find, recording_id)
+    console.print(f"Opening {g['id']} in udb's Chrome…")
+    transcript, stills = guarded(browser.read_stream, g["url"], boards,
+                                 on_transcript=lambda t: console.print(
+                                     f"  transcript: {len(t['entries'])} entries"))
+    g = guarded(stream.import_transcript_data, recording_id, transcript)
+    console.print(f"[green]{g['segments']} segments → {g['source_id']} ({g.get('date')})[/green]")
+    if stills:
+        g = guarded(stream.import_boards_data, recording_id, stills)
+        console.print(f"[green]{g['frames']} board stills[/green]")
+        if read:
+            try:
+                read_boards(recording_id, all_frames=False)
+            except (SystemExit, typer.Exit):
+                console.print("[yellow]Boards not read (needs the vision extra and a GPU).[/yellow]")
+    radar(recording_id, minimum=5)
+
+
+@app.command("stream-all")
+def stream_all(subject: str = typer.Argument(None),
+               redo: bool = typer.Option(False, help="Also recordings already transcribed")):
+    """Every Teams recording of a subject (or all) through `udb recording stream`."""
+    from ..integrations.recordings import catalog
+    todo = [g for g in catalog.load() if "-YT-" not in g["id"]
+            and (not subject or g["subject"] == subject.upper())
+            and (redo or not g.get("source_id"))]
+    console.print(f"{len(todo)} recordings")
+    for g in todo:
+        try:
+            stream_cmd(g["id"], boards=True, read=True)
+        except (SystemExit, typer.Exit):
+            console.print(f"[red]{g['id']} failed; continuing[/red]")
+
+
 @app.command("import-stream")
 def import_stream(recording_id: str,
                   file: Path = typer.Argument(None, help="Default: udb-stream-<ID>.json in Downloads")):
@@ -196,3 +237,14 @@ def process(recording_id: str, browser: str = typer.Option(None)):
     from ..vault import index
     index.reindex_subject(g["subject"])
     radar(recording_id, minimum=5)
+
+
+browser_app = typer.Typer(help="udb's own Chrome (Stream recordings).")
+
+
+@browser_app.command("login")
+def browser_login():
+    """Open udb's Chrome once to sign in to Microsoft (the session is kept)."""
+    from ..integrations.recordings import browser
+    guarded(browser.login)
+    console.print("[green]Signed in. udb recording stream <ID> now runs without you.[/green]")

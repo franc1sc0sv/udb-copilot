@@ -55,10 +55,21 @@ def test_ink_is_measured_inside_the_board_only():
     import numpy as np
 
     from udb.integrations.recordings import frames
-    black = np.zeros((180, 320), np.int16)
-    assert frames._measure(black) is None          # Teams with no shared screen
-    board = black.copy()
-    board[20:160, 40:280] = 255                    # light board on a dark call
-    board[60:70, 60:200] = 0                       # one line of writing
-    ink, _ = frames._measure(board)
-    assert 0.03 < ink < 0.06                       # black frame outside is not ink
+    cam = np.random.default_rng(0).integers(0, 256, (180, 320)).astype(np.int16)
+    assert frames._measure(cam) is None            # a camera picture, no board
+    light = np.zeros((180, 320), np.int16)
+    light[20:160, 40:280] = 255                   # white slide inside a dark call
+    light[60:70, 60:200] = 0                      # one line of writing
+    ink, _ = frames._measure(light)
+    assert 0.03 < ink < 0.06
+    dark = np.full((180, 320), 20, np.int16)      # black board, white chalk
+    dark[60:70, 60:200] = 240
+    ink, _ = frames._measure(dark)
+    assert 0.02 < ink < 0.04
+
+
+def test_branding_cards_are_not_boards():
+    from udb.integrations.recordings import vision
+    assert vision.is_branding("UNIVERSIDAD DON BOSCO\nUDB VIRTUAL\nEl Salvador")
+    assert not vision.is_branding("UDB VIRTUAL\n\\( \\sum F_x = ma \\) T_1 cos θ + T_2 cos θ = m v^2/R")
+    assert vision.clean("\\( T_1 \\sen\\theta \\)\nFigura: No hay figura.") == "\\( T_1 \\operatorname{sen}\\theta \\)"

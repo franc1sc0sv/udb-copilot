@@ -59,6 +59,16 @@ class Reader:
                                       skip_special_tokens=True))
 
 
+BRANDING_RE = re.compile(r"udb\s*virtual|universidad\s+don\s+bosco|vitam\s+impendere|el\s+salvador",
+                         re.I)
+
+
+def is_branding(text: str) -> bool:
+    """Intro and outro cards: only the university's name and logo, nothing taught."""
+    rest = BRANDING_RE.sub("", text)
+    return bool(BRANDING_RE.search(text)) and len(re.sub(r"\W+", "", rest)) < 12
+
+
 def read_frames(subject: str, source_id: str, only_complete: bool = True,
                 reader: Reader | None = None) -> int:
     """Fill each frame's text. Growth stills are skipped unless asked: the complete
@@ -70,7 +80,10 @@ def read_frames(subject: str, source_id: str, only_complete: bool = True,
     for f in frames:
         if only_complete and f.get("kind") == "growth":
             continue
-        f["text"] = reader.read(str(folder / f["file"]))
+        text = reader.read(str(folder / f["file"]))
+        if is_branding(text):
+            f["kind"], text = "branding", ""
+        f["text"] = text
         done += 1
     _write_index(subject, source_id, frames)
     return done
