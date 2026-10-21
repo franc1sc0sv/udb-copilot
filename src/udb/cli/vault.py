@@ -145,6 +145,19 @@ def register(app: typer.Typer) -> None:
             mark = f"[red]{r['error']}[/red]" if r["error"] else f"[green]{r['state']}[/green]"
             console.print(f"{r['id']}: {mark}  figures {r['images_read']}/{r['images']}")
 
+    @sources_app.command("classes")
+    def sources_classes(subject: str = typer.Argument(None, help="SUBJECT or empty for all")):
+        """Assign each course file to its class from its Moodle name (never overrides)."""
+        from ..core.paths import subject_codes
+        from ..vault import index, registry
+        for code in [subject.upper()] if subject else subject_codes():
+            done = guarded(registry.assign_classes, code)
+            if done:
+                index.reindex_subject(code)
+            console.print(f"{code}: {len(done)} sources assigned"
+                          + (f" ({', '.join(f'{s}→{n}' for s, n in done[:6])}"
+                             + ("…" if len(done) > 6 else "") + ")" if done else ""))
+
     @app.command()
     def coverage(subject: str = typer.Argument(None)):
         """Topics the material opens that the class note does not cover."""

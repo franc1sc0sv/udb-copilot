@@ -54,7 +54,8 @@ def sync_subject(code: str, section_map: dict[str, int] | None = None,
                 local.write_bytes(response.content)
             else:
                 local = api.download(item["fileurl"], tmp / item["filename"])
-            number = (section_map or {}).get(item["section"].strip().lower())
+            number = ((section_map or {}).get(item["section"].strip().lower())
+                      or registry.guess_class(item["module"], item["filename"]))
             try:
                 record = registry.register(code, local, kind="course", title=item["module"],
                                            class_number=number, moodle_id=item["moodle_id"])

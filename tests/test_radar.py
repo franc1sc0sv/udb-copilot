@@ -85,3 +85,12 @@ def test_passage_is_whole_sentences_and_verbatim():
     assert contains(chunk, passage(chunk))
     board = "\\( \\sum F_x = ma \\)\nT_1 cos θ + T_2 cos θ = m v^2 / R\nT_1 = (mg + T_2 sen θ) / sen θ"
     assert "T_1 =" in passage(board, "T_1 = (mg")
+
+
+def test_class_is_guessed_from_moodle_names():
+    from udb.vault.registry import guess_class
+    assert guess_class("Material 3", "clase3.html") == 3
+    assert guess_class("Clase 12 - IRD941", "index.html") == 12
+    assert guess_class("Videos de apoyo", "clase7.html") == 7
+    assert guess_class("RUTA DE APRENDIZAJE", "RUTA,AVM941,02,2026.pdf") is None
+    assert guess_class("Guía de ejercicios Unidad 1", "guia.pdf") is None

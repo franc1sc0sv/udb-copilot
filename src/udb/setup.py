@@ -77,6 +77,13 @@ vault/*/sources/*.mkv
 vault/*/sources/*.webm
 vault/*/sources/*.mov
 """
+GITATTRIBUTES = """* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# Course material is kept byte for byte: its sha256 is in the registry.
+vault/*/sources/** -text
+"""
 
 
 def _assets() -> Path:
@@ -212,6 +219,9 @@ def init(folder: Path) -> Path:
     gitignore = folder / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text(GITIGNORE, encoding="utf-8")
+    attributes = folder / ".gitattributes"
+    if not attributes.exists():
+        attributes.write_text(GITATTRIBUTES, encoding="utf-8")
     setup_claude(folder)
     settings.reset()
     return folder

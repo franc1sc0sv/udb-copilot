@@ -117,3 +117,34 @@ def subject_of(source_id: str) -> str:
     if not m:
         raise ValueError(f"invalid source id: {source_id}")
     return m.group(1)
+
+
+CLASS_FILE_RE = re.compile(r"\bclase[_ -]?(\d{1,2})\.html?$", re.I)
+CLASS_TITLE_RE = re.compile(r"^\s*(?:clase|material|semana|sesi[oó]n)\s*(\d{1,2})\b", re.I)
+
+
+def guess_class(title: str | None, filename: str | None) -> int | None:
+    """The class a course file belongs to, from how Moodle names it ("Material 3",
+    "Clase 3 - ...", clase3.html). Learning routes, guides and exam instructions
+    belong to the whole subject and get None."""
+    for text, pattern in ((filename or "", CLASS_FILE_RE), (title or "", CLASS_TITLE_RE)):
+        m = pattern.search(text)
+        if m and 0 < int(m.group(1)) < 60:
+            return int(m.group(1))
+    return None
+
+
+def assign_classes(code: str) -> list[tuple[str, int]]:
+    """Fill `class` where it is missing; a class set by hand is never changed."""
+    records = read_all(code)
+    changed = []
+    for r in records:
+        if r.get("class") or r.get("kind") not in ("course", "exercise"):
+            continue
+        n = guess_class(r.get("title"), r.get("original_name"))
+        if n:
+            r["class"] = n
+            changed.append((r["id"], n))
+    if changed:
+        rewrite(code, records)
+    return changed
