@@ -28,11 +28,16 @@ LOGPROB_THRESHOLD = -1.0
 NO_SPEECH_THRESHOLD = 0.6
 
 
-# Measured on Spanish class videos with human subtitles (RTX 5080, 2026-10-20):
-# turbo, sequential, beam 5: 2.67 % WER at 42x real time and 2.5 GB, against
-# large-v3 2.60 % at 18x. Batched decoding was faster but dropped words at chunk
-# borders (4.1 % WER), and a vocabulary prompt made Whisper skip whole passages.
-DEFAULTS = {"model": "turbo", "quality": "fast", "backend": "faster", "beam_size": 5,
+# Measured on Spanish class videos with human subtitles (RTX 5080, 2026-10-20/21):
+#   large-v3, sequential, beam 5, no previous-text context   2.5 % WER, 15x real time
+#   turbo, same settings                                      2.7 %,      42x
+#   large-v3 + previous-text context                          4.7 %,       9x
+#   large-v3, beam 10, patience 2 + context (old "max")        6.0 %,       8x
+#   batched decoding (any model)                              3.2-4.1 %, drops words
+# A vocabulary prompt made Whisper skip whole passages. So both qualities use the
+# same safe decoding (quality only matters for the transformers fallback); set
+# model: turbo in recordings.yaml for 3x speed at +0.2 points of WER.
+DEFAULTS = {"model": "large", "quality": "max", "backend": "faster", "beam_size": 5,
             "vocab_prompt": False}
 
 
@@ -118,15 +123,14 @@ def run_faster(wav: Path, model: str, subject: str, best: bool) -> dict:
                            compute_type=cfg["compute_type"])
     # An array, not a path: recent PyAV rejects the options faster-whisper passes to open().
     segments, info = whisper.transcribe(
-        read_wav(wav)["raw"], language="es", beam_size=10 if best else cfg["beam_size"], best_of=5,
-        patience=2.0 if best else 1.0, temperature=TEMPERATURES,
+        read_wav(wav)["raw"], language="es", beam_size=cfg["beam_size"], best_of=5,
+        temperature=TEMPERATURES,
         compression_ratio_threshold=REPETITION_THRESHOLD, log_prob_threshold=LOGPROB_THRESHOLD,
         no_speech_threshold=NO_SPEECH_THRESHOLD, vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 500}, word_timestamps=True,
         initial_prompt=prompt_for(subject) if cfg["vocab_prompt"] else None,
-        # Previous-text context chains long sentences better; the repetition
-        # cut above keeps one error from propagating.
-        condition_on_previous_text=best)
+        # Previous-text context raised WER from 2.5 % to 4.7 %: one error leaks forward.
+        condition_on_previous_text=False)
     return {"language": info.language,
             "segments": [{"start": float(s.start), "end": float(s.end), "text": s.text.strip()}
                          for s in segments if s.text.strip()]}
