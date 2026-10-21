@@ -32,20 +32,36 @@ HOOK_PROMPT = PATH_FIX + "command -v udb >/dev/null 2>&1 || exit 0; udb hook pro
 PRE_MATCHER = ("Read|Grep|Glob|Bash|NotebookEdit|WebFetch|mcp__chrome__.*|"
                "mcp__claude-in-chrome__.*")
 
-SUBJECTS_EXAMPLE = {"subjects": [{
-    "code": "IRD", "name": "Interconexión de Redes", "kind": "engineering", "term": "2026-2",
-    "moodle_course_id": None, "days": ["tue", "thu"],
-    "asr_vocabulary": "VLAN, VTP, IPv6, subred, router, switch, trunk"}]}
-MAIL_EXAMPLE = {
-    "accounts": [
-        {"id": "personal", "provider": "gmail", "address": "you@gmail.com",
-         "calendar": True, "drive": True, "send": True},
-        {"id": "udb", "provider": "outlook", "address": "you@udb.edu.sv",
-         "tenant": "organizations", "client_id": "<entra-app-client-id>"},
-    ],
-    "filters": [{"name": "teachers", "from_domains": ["udb.edu.sv"]},
-                {"name": "classroom", "from": ["udbvirtual.edu.sv"]}],
-}
+# Examples stay commented: a fresh vault has no subjects or mail accounts until the
+# student adds them (udb setup), so nothing fake reaches the digest.
+SUBJECTS_EXAMPLE = """# Your subjects this term. `udb setup` fills this from Moodle.
+subjects: []
+# - code: IRD
+#   name: Interconexión de Redes
+#   kind: engineering        # math | physics | engineering | programming | humanities | general
+#   term: 2026-2
+#   moodle_course_id: 51846  # udb moodle courses
+#   days: [tue, thu]
+"""
+MAIL_EXAMPLE = """# Mail accounts udb reads (digest, agenda, mail_search). `udb mail add` adds one;
+# credentials live outside the repo (udb mail login <id>).
+accounts: []
+# - id: personal
+#   provider: gmail
+#   address: you@gmail.com
+#   calendar: true
+#   send: true
+# - id: udb
+#   provider: outlook
+#   address: you@udb.edu.sv
+#   tenant: organizations
+#   client_id: <entra-app-client-id>   # docs/outlook.md
+filters:
+  - name: teachers
+    from_domains: [udb.edu.sv]
+  - name: classroom
+    from: [udbvirtual.edu.sv]
+"""
 GITIGNORE = """# udb: generated or local-only
 index/*
 !index/ledger.db
@@ -55,6 +71,11 @@ index/*
 **/work/chapters/
 .env
 .env.*
+# Class videos stay on disk; their transcripts and board stills are what is committed.
+vault/*/sources/*.mp4
+vault/*/sources/*.mkv
+vault/*/sources/*.webm
+vault/*/sources/*.mov
 """
 
 
@@ -185,8 +206,9 @@ def init(folder: Path) -> Path:
     for name, data in examples.items():
         path = folder / "config" / name
         if not path.exists():
-            path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
-                            encoding="utf-8")
+            text = data if isinstance(data, str) else yaml.safe_dump(
+                data, allow_unicode=True, sort_keys=False)
+            path.write_text(text, encoding="utf-8")
     gitignore = folder / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text(GITIGNORE, encoding="utf-8")
