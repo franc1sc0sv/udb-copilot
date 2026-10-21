@@ -2,32 +2,35 @@
 
 ```
 src/udb/
-  core/          settings (data home), paths, schema, lang (words matched inside notes),
-                 notes, anchors, text, chunking, findings, secrets
-  vault/         registry (sources, versions, classes), ingest (extract text, OCR, figures),
-                 index (SQLite FTS5), sources (health), classes, methods, ledger, scaffold
-  checks/        citations (anchors, paragraph rule, drift), coverage (topics, material),
-                 clarity, exercises (method conformance), deep (optional model judge)
-  moodle/        client (transport, read-only guard), reader (everything readable),
-                 sync (files and the teacher's words into the vault)
-  mail/          base, gmail, outlook, imap
-  google/        oauth, calendar, drive
-  media/         catalog (Teams + YouTube), download, asr (Whisper), frames (board stills),
-                 vision (Qwen3-VL), stream (Teams via the browser), browser, radar
-  planning/      agenda, tasks, status, digest
-  rendering/     jinja, lesson (citation cards, coverage strip), exercise, math_svg,
-                 diagrams, views, templates/
-  claude/        setup (wires .claude/ and .mcp.json), prompts (rules + subagents),
-                 hooks (PreToolUse/PostToolUse/session/prompt), runner (Agent SDK)
-  server/        app (the `vault` MCP), moodle (the `moodle` MCP)
-  cli/           the `udb` command, one module per area
-  assets/claude/ skills and CLAUDE.md copied into the data home by `udb setup claude`
+  __main__.py          python -m udb
+  config/              settings (data home), paths, secrets, schema
+  domain/              the study logic
+    text/              normalize (folding, passages), lang (words matched in notes), chunking
+    notes/             document (note parser), anchors, findings
+    sources/           registry (sources, versions, classes), ingest, ocr, figures,
+                       index (SQLite FTS5), health (`udb sources`)
+    study/             classes, methods, ledger, scaffold
+    checks/            citations, coverage, clarity, exercises, deep (optional model judge)
+    planning/          agenda, digest, status, tasks
+  integrations/        everything that talks to the outside
+    moodle/            client (transport, read-only guard), reader, sync
+    mail/              base, gmail, outlook, imap
+    google/            oauth, calendar, drive
+    media/             catalog, download, asr (Whisper), frames (board stills),
+                       vision (Qwen3-VL), stream (Teams), browser, radar
+  interfaces/          how udb is used
+    cli/               app.py (the `udb` command), common.py, commands/ (one module per area)
+    mcp/               vault.py (the `vault` MCP), moodle.py (the `moodle` MCP)
+    claude/            setup (.claude/ and .mcp.json), prompts, hooks, runner (Agent SDK)
+  rendering/           lesson, exercise, views, math_svg, diagrams; templates/, static/
+  assets/claude/       skills and CLAUDE.md copied into the data home by `udb setup claude`
 ```
 
 ## Rules
 
-- **Layers point down.** `cli` and `server` call `planning`, `checks`, `vault`, `moodle`,
-  `mail`, `google` and `media`; those call `core`. Nothing in `core` imports upward.
+- **Layers point down.** `interfaces` calls `domain`, `integrations` and `rendering`;
+  `domain` and `integrations` may call each other but never `interfaces`; `config`
+  imports nothing from the rest. Imports are absolute (`from udb.domain.notes import anchors`).
 - **CLI and MCP share functions.** A tool and a command never re-implement each
   other; both format what one function returns.
 - **One way per thing.** No legacy aliases, no second backend kept "just in case".
@@ -36,8 +39,8 @@ src/udb/
   (`verify --deep`), judges faithfulness as a warning.
 - **Code is English, content is the student's language.** Note text, section
   titles and generated pages are Spanish; the words the checks match live in
-  `core/lang.py`.
-- **Moodle is read only.** `moodle.client` refuses any web-service call that is
+  `domain/text/lang.py`.
+- **Moodle is read only.** `integrations.moodle.client` refuses any web-service call that is
   not a pure read, for every caller.
 - **Heavy dependencies are extras** (`asr`, `vision`, `browser`, `agent`, `outlook`),
   so a cloud session installs fast. OCR is in the base install.

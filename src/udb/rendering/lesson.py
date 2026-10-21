@@ -5,10 +5,12 @@ from urllib.parse import quote
 
 import markdown as md
 
-from ..core import anchors, lang, notes
-from ..vault import registry
-from . import math_svg
-from .jinja import env
+from udb.domain.notes import anchors
+from udb.domain.notes import document as notes
+from udb.domain.sources import registry
+from udb.domain.text import lang
+from udb.rendering import math_svg
+from udb.rendering.jinja import env
 
 CALLOUT_RE = re.compile(r"^>\s*\[!(\w+)\]\s*(.*)$")
 REF_HTML_RE = re.compile(r"\[\^([A-Za-z0-9_-]+)\]")
@@ -118,7 +120,7 @@ def build_sources(definitions: dict[str, anchors.Anchor]) -> list[dict]:
 
 def coverage_strip(front: dict, path: Path) -> dict | None:
     """How much of the class material the note uses, for the strip under the title."""
-    from ..checks.coverage import material_coverage
+    from udb.domain.checks.coverage import material_coverage
     code, number = front.get("subject"), front.get("class")
     if not code or not isinstance(number, int):
         return None

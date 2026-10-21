@@ -49,7 +49,7 @@ browser = ["playwright>=1.48"]
 dev = ["ruff>=0.6"]
 
 [project.scripts]
-udb = "udb.cli:main"
+udb = "udb.interfaces.cli.app:main"
 
 # The RTX 50 series (Blackwell, sm_120) needs CUDA 12.8+ wheels. Only the asr and
 # vision extras pull torch, so this index is never touched by the core install.

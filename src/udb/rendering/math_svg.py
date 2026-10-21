@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-SCRIPT = Path(__file__).parent / "vendor" / "render_math.cjs"
+SCRIPT = Path(__file__).parent / "static" / "render_math.cjs"
 RAW_TEX_RE = re.compile(r"\\\(|\\\[|\\frac|\\sqrt")
 
 

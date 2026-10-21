@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path
 
-from . import math_svg
+from udb.rendering import math_svg
 
 
 @dataclass

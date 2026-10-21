@@ -7,7 +7,7 @@ Claude's CSS variables, so they follow light and dark mode. Long content
 """
 from datetime import date
 
-from .jinja import env
+from udb.rendering.jinja import env
 
 STAGE_TONE = {"complete": "success", "no material": "neutral", "render lesson": "accent",
               "write explanation": "danger", "method in conflict": "danger",
@@ -60,16 +60,16 @@ def build(kind: str, subject: str | None = None) -> str:
     """The view of `kind` (digest, status, agenda, tasks) with fresh data."""
     code = subject.upper() if subject else None
     if kind == "digest":
-        from ..planning import digest as dg
+        from udb.domain.planning import digest as dg
         return digest(dg.build(hours=24))
     if kind == "status":
-        from ..planning import status as st
+        from udb.domain.planning import status as st
         return status(st.build(code))
     if kind == "agenda":
-        from ..planning import agenda as ag
+        from udb.domain.planning import agenda as ag
         return agenda(ag.build(code))
     if kind == "tasks":
-        from ..moodle import reader
-        from ..planning import tasks as tb
+        from udb.domain.planning import tasks as tb
+        from udb.integrations.moodle import reader
         return tasks(tb.board(reader.deadlines(code), code))
     raise ValueError("kind must be digest, status, agenda or tasks")
