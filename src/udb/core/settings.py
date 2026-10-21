@@ -32,6 +32,7 @@ DEFAULTS: dict = {
     "paths": {"vault": "vault", "config": "config", "index": "index", "cycles": "cycles"},
     "secrets_dir": "~/.config/udb",
     "rate_limit_seconds": 0.3,
+    "mcp": {"google_workspace": "auto", "moodle": "auto"},
 }
 
 

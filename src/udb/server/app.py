@@ -17,8 +17,8 @@ from ..vault import classes, index, ingest, ledger, methods, registry
 INSTRUCTIONS = """Study vault with mandatory citations.
 Search with vault_search, then cite only through vault_quote (it returns the exact anchor).
 Before solving any exercise call method_get; NOT_FOUND means stop, conflict means ask.
-The virtual classroom (Moodle) is reached only through moodle_assignments, agenda,
-status and digest, never through a browser."""
+The virtual classroom (Moodle) is reached only through udb: the `moodle` MCP server
+(read only) and the digest, agenda, status and tasks_board tools here. Never a browser."""
 
 server = MCPServer(name="vault", instructions=INSTRUCTIONS)
 

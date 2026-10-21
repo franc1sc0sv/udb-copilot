@@ -30,6 +30,12 @@ def register(app: typer.Typer) -> None:
         console.print(f"[green]Token stored in {path} (mode 600).[/green]")
         console.print("For cloud sessions, put that token in the MOODLE_TOKEN variable.")
 
+    @moodle_app.command("mcp")
+    def moodle_mcp():
+        """Run the read-only Moodle MCP server on stdio (Claude Code starts it from .mcp.json)."""
+        from ..server import moodle
+        moodle.main()
+
     @moodle_app.command("courses")
     def moodle_courses():
         """Your Moodle courses with their ids (for config/subjects.yaml)."""

@@ -17,9 +17,15 @@ their language. **Everything written into vault files is in Spanish.**
 
 ## The classroom is read only through udb
 
-Moodle (`{moodle_domain}`) is reached with the `moodle_assignments`, `tasks_board`,
-`agenda`, `status` and `digest` tools or `udb sync`. Never with a browser, curl or wget.
-If a fact is not there, say so and ask.
+Moodle (`{moodle_domain}`) is reached only through udb, never with a browser, curl or wget:
+
+- The `moodle` MCP is the whole classroom, read only: `updates`, `notifications`,
+  `conversations`, `grades`, `course`, `activity`, `forums`, `discussion`, `quizzes`,
+  `calendar`, `teachers`. See `/udb-moodle`.
+- The `vault` tools `digest`, `agenda`, `status` and `tasks_board` cross Moodle with the
+  vault; `udb sync` downloads course material for citing.
+
+Nothing submits or posts: the student does that in Moodle. If a fact is not there, say so.
 
 ## Where things are
 

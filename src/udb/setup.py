@@ -82,7 +82,8 @@ def _merge_hooks(settings_path: Path) -> None:
     put("UserPromptSubmit", None, HOOK_PROMPT)
     allow = data.setdefault("permissions", {}).setdefault("allow", [])
     for rule in ("mcp__vault__vault_search", "mcp__vault__vault_quote", "mcp__vault__status",
-                 "mcp__vault__digest", "Bash(udb status:*)", "Bash(udb verify:*)"):
+                 "mcp__vault__digest", "mcp__moodle", "Bash(udb status:*)",
+                 "Bash(udb verify:*)"):
         if rule not in allow:
             allow.append(rule)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,12 +91,20 @@ def _merge_hooks(settings_path: Path) -> None:
                              encoding="utf-8")
 
 
-def _merge_mcp(path: Path, google: bool) -> None:
+def _merge_mcp(path: Path, google: bool, moodle: bool = True) -> None:
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     data.setdefault("mcpServers", {})["vault"] = {"command": "udb", "args": ["mcp"]}
+    if moodle:
+        # The whole classroom, read only (grades, forums, messages, notifications).
+        data["mcpServers"]["moodle"] = {"command": "udb", "args": ["moodle", "mcp"]}
+    else:
+        data["mcpServers"].pop("moodle", None)
     if google:
         # The Google Workspace MCP, with the same OAuth app and login as udb's Gmail.
+        # Same name as a user-level entry on purpose: Claude Code keeps one per name.
         data["mcpServers"]["google-workspace"] = {"command": "udb", "args": ["google-mcp"]}
+    else:
+        data["mcpServers"].pop("google-workspace", None)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
@@ -140,7 +149,15 @@ def setup_claude(home: Path) -> list[str]:
     mail = home / "config" / "mail.yaml"
     accounts = (yaml.safe_load(mail.read_text(encoding="utf-8")) or {}).get("accounts", []) \
         if mail.exists() else []
-    _merge_mcp(home / ".mcp.json", any(a.get("provider") == "gmail" for a in accounts))
+    # udb.yaml `mcp.<server>`: auto, true or false. Google is auto-on with a Gmail
+    # account; Moodle with a moodle_url.
+    loaded = settings.load(home)
+    wanted = loaded.data.get("mcp") or {}
+    has_gmail = any(a.get("provider") == "gmail" for a in accounts)
+    google = wanted.get("google_workspace", "auto")
+    moodle = wanted.get("moodle", "auto")
+    _merge_mcp(home / ".mcp.json", has_gmail if google == "auto" else bool(google),
+               bool(loaded.institution.get("moodle_url")) if moodle == "auto" else bool(moodle))
     try:
         domain = settings.load(home).institution.get("guard_domains", ["the classroom"])[0]
     except (OSError, KeyError, IndexError):
