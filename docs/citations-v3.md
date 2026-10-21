@@ -152,8 +152,8 @@ Changes:
 Class recordings live on the teachers' OneDrive/SharePoint (Stream), and the
 UDB mailbox is Outlook. Facts checked on 2026-10-20:
 
-- The UDB tenant (`f9afe020-…`) is **Managed** (cloud identities, no ADFS), so
-  the device-code login works from a phone.
+- The UDB tenant (`f9afe020-…`) is **Managed** (cloud identities, no ADFS):
+  the Microsoft sign-in page handles the login directly.
 - Reading a shared link (`GET /shares/{u!base64url}/driveItem/content`) needs
   delegated `Files.ReadWrite` at least (Graph docs). Plain `Files.ReadWrite` and
   `Mail.Read` are user-consentable by default; `*.All` and `Sites.*` need an
@@ -166,8 +166,15 @@ UDB mailbox is Outlook. Facts checked on 2026-10-20:
 
 Design, mirroring Google:
 
-- **One Entra app owned by the student** (multi-tenant, public client,
-  device code). Scopes: `User.Read`, `Mail.Read`, `Files.ReadWrite`,
+- **One Entra app owned by the student** (multi-tenant + personal accounts,
+  public client). Login is OAuth **authorization code + PKCE**: on the PC the
+  browser returns to `http://localhost`; from a phone or the cloud the student
+  pastes the final URL back (the rclone/gcloud "no browser" pattern). Device
+  code is only a fallback: since 2025 Microsoft ships a managed Conditional
+  Access policy that blocks it in tenants that never used it.
+- **Where to register it:** first try inside the UDB tenant with the student
+  account (an app registered in the tenant passes even the stricter consent
+  policies); otherwise a free Entra directory of the student's own. Scopes: `User.Read`, `Mail.Read`, `Files.ReadWrite`,
   `offline_access`. udb never writes files; `ReadWrite` is only what `/shares`
   demands.
 - **udb owns the login** (MSAL cache under `secrets_dir`, packed into
@@ -213,9 +220,21 @@ Quality gates per video, shown in `udb recording board`: speech confidence
 formulas that failed to compile. Anything below threshold is `needs-review`
 instead of silently indexed.
 
-Compute: runs only on the student's PC (RTX 5080, 16 GB), one model on the GPU
-at a time, queued with `udb media process --all`. Times are **to be measured**
-on the first real recording; no number is promised before that.
+Compute: runs only on the student's PC (RTX 5080, 16 GB), queued with
+`udb media process --all`. Speech and slide reading can share the GPU
+(Whisper fp16 and PaddleOCR-VL together fit in 16 GB); Qwen3-VL runs alone.
+
+Speed and quality are chosen by benchmark, not guessed:
+
+| Stage | Candidates | Measured on |
+|---|---|---|
+| Speech | large-v3 vs large-v3-turbo; beam 1 vs 5; batched (`BatchedInferencePipeline`) vs sequential; VAD on/off | a Spanish class clip with a hand-corrected reference: word error rate, technical-term accuracy, real-time factor, VRAM |
+| Slides | RapidOCR vs PaddleOCR-VL (vs Qwen3-VL) | 50 frames with formulas, tables, diagrams: LaTeX that compiles, text accuracy, seconds per frame |
+| Frames | scene threshold, dedup threshold | frames kept vs slides really shown |
+
+Published hint, not our number: on English audio turbo ran 2.7× faster than
+large-v3 with no WER loss (faster-whisper issue #1030). Spanish and technical
+vocabulary may differ, so both are tested.
 
 First proof before building the rest: one Stream class (IRD) and one YouTube
 embed, end to end: acquire → transcript → frames → slide reading → a note
