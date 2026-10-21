@@ -28,7 +28,9 @@ def download(rid: str, browser: str | None = None, dest: Path | None = None) -> 
     # --cookies-from-browser often fails there. An exported cookies.txt works.
     cookies = cfg.get("cookies_file") or cfg.get("cookies_archivo")
     browser = browser or cfg.get("browser") or cfg.get("navegador") or "chrome"
-    if cookies and Path(cookies).expanduser().exists():
+    if "youtube.com" in g["url"] or "youtu.be" in g["url"]:
+        auth = []  # public course videos: no session needed
+    elif cookies and Path(cookies).expanduser().exists():
         auth = ["--cookies", str(Path(cookies).expanduser())]
     else:
         auth = ["--cookies-from-browser", browser]

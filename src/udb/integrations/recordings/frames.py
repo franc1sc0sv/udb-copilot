@@ -31,7 +31,7 @@ def frame_index(subject: str, source_id: str) -> list[dict]:
         return []
     frames = json.loads(path.read_text(encoding="utf-8")).get("frames", [])
     return [{"n": f["n"], "file": f.get("file", f.get("archivo")), "t": f.get("t"),
-             "text": f.get("text", f.get("texto", ""))} for f in frames]
+             "kind": f.get("kind"), "text": f.get("text", f.get("texto", ""))} for f in frames]
 
 
 def _write_index(subject: str, source_id: str, frames: list[dict]) -> None:
@@ -67,6 +67,93 @@ def extract(subject: str, source_id: str, threshold: float = 0.35, every: int | 
                "text": ""} for n, img in enumerate(images)]
     _write_index(subject, source_id, frames)
     return {"source_id": source_id, "total": len(frames), "dir": str(out)}
+
+
+BOARD_STEP = 1.0     # seconds between looks
+BOARD_DROP = 0.15    # ink falls 15 %: erased or new slide
+BOARD_GROW = 0.30    # ink grew 30 % since the last kept still
+BOARD_CHANGE = 0.06  # share of pixels that changed a lot: new slide, same ink
+
+
+def _measure(img) -> tuple[float, object] | None:
+    """Ink inside the light (board) area; None when nothing board-like is shown
+    (Teams black background, webcam only)."""
+    import numpy as np
+    light = img > 200
+    if light.mean() < 0.2:
+        return None
+    ys, xs = np.nonzero(light)
+    box = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    return float((box < 150).mean()), img
+
+
+def board_times(video: Path, step: float = BOARD_STEP) -> list[dict]:
+    """When to take a still: the last moment of every complete board, plus big
+    growth steps on long boards so stills line up with what is being said."""
+    import numpy as np
+    w, h = 320, 180
+    proc = subprocess.Popen([ffmpeg_bin(), "-v", "error", "-i", str(video), "-vf",
+                             f"fps={1 / step},scale={w}:{h},format=gray", "-f", "rawvideo", "-"],
+                            stdout=subprocess.PIPE)
+    kept: list[dict] = []
+    prev = prev_t = last = None
+    i = 0
+    while True:
+        buf = proc.stdout.read(w * h)
+        if len(buf) < w * h:
+            break
+        t = i * step
+        i += 1
+        cur = _measure(np.frombuffer(buf, np.uint8).reshape(h, w).astype(np.int16))
+        if cur is None:
+            if prev:
+                kept.append({"t": prev_t, "kind": "before-change"})
+            prev = last = None
+            continue
+        ink, img = cur
+        if prev and prev[0] > 0.003 and ink < prev[0] * (1 - BOARD_DROP):
+            kept.append({"t": prev_t, "kind": "before-erase"})
+            last = None
+        elif (prev and prev[0] > 0.003 and ink < prev[0] * 1.1
+              and (np.abs(img - prev[1]) > 60).mean() > BOARD_CHANGE):
+            kept.append({"t": prev_t, "kind": "before-change"})
+            last = None
+        elif ink > 0.003 and last is not None and ink > last * (1 + BOARD_GROW):
+            kept.append({"t": t, "kind": "growth"})
+            last = ink
+        if last is None:
+            last = ink
+        prev, prev_t = cur, t
+    proc.wait()
+    if prev:
+        kept.append({"t": prev_t, "kind": "end"})
+    return kept
+
+
+def extract_boards(subject: str, source_id: str, step: float = BOARD_STEP,
+                   width: int = 1920) -> dict:
+    """One full-resolution still per complete board (the default for class videos)."""
+    try:
+        import numpy  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError("board stills need numpy: uv tool install 'udb-copilot[vision]'") from exc
+    video = registry.source_file(subject, source_id)
+    if not video.exists():
+        raise FileNotFoundError(f"{video} does not exist")
+    out = frames_dir(subject, source_id)
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True, exist_ok=True)
+    frames = []
+    for n, k in enumerate(board_times(video, step), 1):
+        name = f"b{n:04d}.jpg"
+        subprocess.run([ffmpeg_bin(), "-v", "error", "-ss", f"{k['t']:.2f}", "-i", str(video),
+                        "-frames:v", "1", "-vf", f"scale='min({width},iw)':-2", "-q:v", "2", "-y",
+                        str(out / name)], check=True)
+        frames.append({"n": n, "file": name, "t": k["t"], "kind": k["kind"], "text": ""})
+    _write_index(subject, source_id, frames)
+    return {"source_id": source_id, "total": len(frames),
+            "complete": sum(f["kind"] != "growth" for f in frames), "dir": str(out)}
 
 
 def frame_path(subject: str, source_id: str, n: int) -> Path:

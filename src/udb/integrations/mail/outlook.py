@@ -28,9 +28,9 @@ import httpx
 from .base import MailError, Message, Query, matches, safe_name, secret_from_env, secret_path
 
 GRAPH = "https://graph.microsoft.com/v1.0/me"
-# Files.ReadWrite is what Graph demands to read shared links (class recordings);
-# udb never writes files. offline_access is added by MSAL itself.
-SCOPES = ["User.Read", "Mail.Read", "Files.ReadWrite"]
+# Read-only, as registered in the UDB tenant. Files.Read.All / Sites.Read.All (class
+# recordings) join only once IT agrees. offline_access is added by MSAL itself.
+SCOPES = ["User.Read", "Mail.Read"]
 REDIRECT = "http://localhost"
 TIMEOUT = 20.0
 

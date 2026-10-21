@@ -92,7 +92,11 @@ def is_poor_title(text: str) -> bool:
 
 
 def url_key(url: str) -> str:
-    """The video's identity without query parameters (Moodle adds ?nav=, ?e=...)."""
+    """The video's identity without query parameters (Moodle adds ?nav=, ?e=...).
+    YouTube keeps its video id, which lives in the query."""
+    yt = YOUTUBE_RE.search(url)
+    if yt:
+        return f"youtube:{yt[1]}"
     return strip_accents(url.split("?", 1)[0].rstrip("/").lower())
 
 
@@ -169,6 +173,43 @@ def discover(subject: str | None = None) -> list[dict]:
                     seen[key] = items[-1]
         save(items)
         return items
+
+
+YOUTUBE_RE = re.compile(r"(?:youtube(?:-nocookie)?\.com/(?:embed/|watch\?v=)|youtu\.be/)"
+                        r"([\w-]{11})")
+
+
+def discover_youtube(subject: str | None = None) -> list[dict]:
+    """Add the YouTube videos embedded in course pages already in the vault.
+
+    They are part of the teacher's material, public, and downloadable, so they go
+    through the same pipeline as class recordings (ids <CODE>-YT-NNN).
+    """
+    from ...vault import registry
+
+    items = load()
+    seen = {url_key(g["url"]) for g in items}
+    for s in load_subjects():
+        code = s["code"]
+        if subject and code != subject.upper():
+            continue
+        for rec in registry.read_all(code):
+            for page in index.load_pages(code, rec["id"]):
+                for vid in YOUTUBE_RE.findall(page.get("text", "")):
+                    url = f"https://www.youtube.com/watch?v={vid}"
+                    if url_key(url) in seen:
+                        continue
+                    n = max([int(g["id"].rsplit("-", 1)[1]) for g in items
+                             if g["id"].startswith(f"{code}-YT-")], default=0) + 1
+                    items.append({"id": f"{code}-YT-{n:03d}", "subject": code,
+                                  "title": f"{rec.get('title', '')} · video {n}"[:120],
+                                  "section": rec.get("title", "")[:80], "url": url,
+                                  "date": None, "class": rec.get("class"),
+                                  "from_source": rec["id"], "status": "pending",
+                                  "source_id": None, "seen_on": date.today().isoformat()})
+                    seen.add(url_key(url))
+    save(items)
+    return items
 
 
 def board() -> list[dict]:

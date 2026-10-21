@@ -30,15 +30,26 @@ asr = [
     "transformers>=4.44",
     "accelerate>=0.33",
     "soundfile>=0.12",
-    "faster-whisper>=1.0",
+    "faster-whisper>=1.2",
+    "ctranslate2>=4.6",
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12>=9",
+]
+# Board and slide reading in videos (Qwen3-VL, local GPU). Same torch as asr.
+vision = [
+    "numpy>=1.26",
+    "torch>=2.9",
+    "torchvision",
+    "transformers>=4.57",
+    "accelerate>=0.33",
 ]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 udb = "udb.cli:main"
 
-# The RTX 50 series (Blackwell, sm_120) needs CUDA 12.8+ wheels. Only the asr
-# extra pulls torch, so this index is never touched by the core install.
+# The RTX 50 series (Blackwell, sm_120) needs CUDA 12.8+ wheels. Only the asr and
+# vision extras pull torch, so this index is never touched by the core install.
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
@@ -46,6 +57,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
 
 [build-system]
 requires = ["hatchling"]

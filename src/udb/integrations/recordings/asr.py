@@ -28,11 +28,21 @@ LOGPROB_THRESHOLD = -1.0
 NO_SPEECH_THRESHOLD = 0.6
 
 
+# Measured on Spanish class videos with human subtitles (RTX 5080, 2026-10-20):
+# turbo, sequential, beam 5: 2.67 % WER at 42x real time and 2.5 GB, against
+# large-v3 2.60 % at 18x. Batched decoding was faster but dropped words at chunk
+# borders (4.1 % WER), and a vocabulary prompt made Whisper skip whole passages.
+DEFAULTS = {"model": "turbo", "quality": "fast", "backend": "faster", "beam_size": 5,
+            "vocab_prompt": False}
+
+
 def config() -> dict:
     cfg = load_yaml("recordings.yaml")
-    return {"model": cfg.get("model", cfg.get("modelo", "large")),
-            "quality": QUALITY.get(cfg.get("quality", cfg.get("calidad", "max")), "max"),
-            "backend": cfg.get("backend", "auto"),
+    return {"model": cfg.get("model", cfg.get("modelo", DEFAULTS["model"])),
+            "quality": QUALITY.get(cfg.get("quality", cfg.get("calidad", DEFAULTS["quality"])),
+                                   DEFAULTS["quality"]),
+            "vocab_prompt": cfg.get("vocab_prompt", DEFAULTS["vocab_prompt"]),
+            "backend": cfg.get("backend", DEFAULTS["backend"]),
             "compute_type": cfg.get("compute_type", "float16"),
             "beam_size": cfg.get("beam_size", 5), "batch_size": cfg.get("batch_size", 8),
             "ffmpeg": cfg.get("ffmpeg")}
@@ -83,19 +93,37 @@ def prompt_for(subject: str) -> str:
     return f"{base} Términos: {vocabulary}." if vocabulary else base
 
 
+def preload_cuda_libs() -> None:
+    """CTranslate2 needs cuBLAS 12 and cuDNN 9; the pip wheels (nvidia-cublas-cu12,
+    nvidia-cudnn-cu12) are not on the loader path, so load them once by hand."""
+    import ctypes
+    import glob
+    import site
+
+    for pattern in ("nvidia/cublas/lib/libcublas*.so.12", "nvidia/cudnn/lib/libcudnn*.so.9"):
+        for base in site.getsitepackages():
+            for lib in sorted(glob.glob(f"{base}/{pattern}")):
+                try:
+                    ctypes.CDLL(lib, mode=ctypes.RTLD_GLOBAL)
+                except OSError:
+                    pass
+
+
 def run_faster(wav: Path, model: str, subject: str, best: bool) -> dict:
+    preload_cuda_libs()
     from faster_whisper import WhisperModel
 
     cfg = config()
     whisper = WhisperModel(MODELS[model]["faster"], device="cuda",
                            compute_type=cfg["compute_type"])
+    # An array, not a path: recent PyAV rejects the options faster-whisper passes to open().
     segments, info = whisper.transcribe(
-        str(wav), language="es", beam_size=10 if best else cfg["beam_size"], best_of=5,
+        read_wav(wav)["raw"], language="es", beam_size=10 if best else cfg["beam_size"], best_of=5,
         patience=2.0 if best else 1.0, temperature=TEMPERATURES,
         compression_ratio_threshold=REPETITION_THRESHOLD, log_prob_threshold=LOGPROB_THRESHOLD,
         no_speech_threshold=NO_SPEECH_THRESHOLD, vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 500}, word_timestamps=True,
-        initial_prompt=prompt_for(subject),
+        initial_prompt=prompt_for(subject) if cfg["vocab_prompt"] else None,
         # Previous-text context chains long sentences better; the repetition
         # cut above keeps one error from propagating.
         condition_on_previous_text=best)

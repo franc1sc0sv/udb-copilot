@@ -41,3 +41,24 @@ def test_stream_entries_become_segments_without_system_lines():
     assert [(s["start"], s["end"], s["speaker"]) for s in segs] == [
         (4.0, 21.0, "Orador 1"), (21.0, 60.0, "Orador 2")]
     assert stream.class_date("Reunión 1 - IRD941-20260923_203547-Meeting Recording") == "2026-09-23"
+
+
+def test_youtube_ids_survive_url_keys():
+    from udb.integrations.recordings import catalog
+    a = catalog.url_key("https://www.youtube.com/watch?v=8M1KGEQmV_w")
+    b = catalog.url_key("https://www.youtube.com/embed/8M1KGEQmV_w?rel=0")
+    c = catalog.url_key("https://www.youtube.com/watch?v=jt9V1h78oSQ")
+    assert a == b != c
+
+
+def test_ink_is_measured_inside_the_board_only():
+    import numpy as np
+
+    from udb.integrations.recordings import frames
+    black = np.zeros((180, 320), np.int16)
+    assert frames._measure(black) is None          # Teams with no shared screen
+    board = black.copy()
+    board[20:160, 40:280] = 255                    # light board on a dark call
+    board[60:70, 60:200] = 0                       # one line of writing
+    ink, _ = frames._measure(board)
+    assert 0.03 < ink < 0.06                       # black frame outside is not ink

@@ -26,11 +26,14 @@ def board(subject: str = typer.Argument(None)):
 
 
 @app.command()
-def discover(subject: str = typer.Argument(None)):
-    """Find recording links in Moodle and add them to the catalog."""
+def discover(subject: str = typer.Argument(None),
+             youtube: bool = typer.Option(True, help="Also the YouTube videos in course pages")):
+    """Find recording links in Moodle (and YouTube embeds) and add them to the catalog."""
     from ..integrations.recordings import catalog
     before = len(catalog.load())
     items = guarded(catalog.discover, subject)
+    if youtube:
+        items = guarded(catalog.discover_youtube, subject)
     console.print(f"[green]{len(items) - before} new[/green], {len(items)} total.")
 
 
@@ -68,15 +71,20 @@ def transcribe(recording_id: str, model: str = typer.Option(None),
 
 
 @app.command()
-def frames(recording_id: str, threshold: float = typer.Option(None),
-           every: int = typer.Option(None, help="One frame every N seconds"),
+def frames(recording_id: str,
+           scenes: bool = typer.Option(False, "--scenes", help="Old mode: every scene change"),
+           threshold: float = typer.Option(None), every: int = typer.Option(None),
            no_ocr: bool = typer.Option(False, "--no-ocr")):
-    """One frame per screen change, plus the text on each slide."""
+    """One still per complete board (last state before erase or slide change)."""
     from ..integrations.recordings import catalog
     from ..integrations.recordings import frames as fr
     g = guarded(catalog.find, recording_id)
     if not g.get("source_id"):
         die(f"{recording_id} is not downloaded yet.")
+    if not scenes and not every:
+        res = guarded(fr.extract_boards, g["subject"], g["source_id"])
+        console.print(f"[green]{res['total']} stills, {res['complete']} complete boards[/green]")
+        return
     cfg = catalog.config()
     res = guarded(fr.extract, g["subject"], g["source_id"],
                   threshold=threshold or cfg.get("scene_threshold", cfg.get("umbral_escena", 0.35)),
@@ -111,10 +119,11 @@ def radar(recording_id: str, minimum: int = typer.Option(5)):
         console.print(f"  {h['quote'][:400]}")
 
 
-def _stream_file(recording_id: str) -> Path | None:
-    name = f"udb-stream-{recording_id.upper()}.json"
+def _stream_file(recording_id: str, kind: str = "stream") -> Path | None:
+    # Browsers save repeats as "name (1).json": take the newest.
+    stem = f"udb-{kind}-{recording_id.upper()}"
     places = [Path.home() / "Downloads", *Path("/mnt/c/Users").glob("*/Downloads")]
-    found = [p / name for p in places if (p / name).exists()]
+    found = [f for p in places if p.is_dir() for f in p.glob(f"{stem}*.json")]
     return max(found, key=lambda p: p.stat().st_mtime) if found else None
 
 
@@ -123,6 +132,37 @@ def stream_js(recording_id: str):
     """JavaScript that saves a Stream transcript (run it on the Stream page, Claude in Chrome)."""
     from ..integrations.recordings import stream
     print(stream.extract_js(recording_id))
+
+
+@app.command("boards-js")
+def boards_js(recording_id: str, step: int = typer.Option(3, help="Seconds between looks")):
+    """JavaScript that keeps a still of every complete board while stepping through Stream."""
+    from ..integrations.recordings import stream
+    print(stream.boards_js(recording_id, step))
+
+
+@app.command("import-boards")
+def import_boards(recording_id: str,
+                  file: Path = typer.Argument(None, help="Default: udb-boards-<ID>.json in Downloads")):
+    """Store the board stills saved from Stream as the recording's frames."""
+    from ..integrations.recordings import stream
+    file = file or _stream_file(recording_id, "boards")
+    if not file:
+        die(f"udb-boards-{recording_id.upper()}.json not found in Downloads; pass the path.")
+    g = guarded(stream.import_boards, recording_id, file)
+    console.print(f"[green]{g['id']}: {g['frames']} board stills stored. "
+                  f"Read them with: udb recording read-boards {g['id']}[/green]")
+
+
+@app.command("read-boards")
+def read_boards(recording_id: str, all_frames: bool = typer.Option(False, "--all")):
+    """Read every complete board with the local vision model (GPU, local only)."""
+    from ..integrations.recordings import catalog, vision
+    g = guarded(catalog.find, recording_id)
+    if not g.get("source_id"):
+        die(f"{recording_id} has no frames yet.")
+    n = guarded(vision.read_frames, g["subject"], g["source_id"], not all_frames)
+    console.print(f"[green]{n} boards read for {g['id']}.[/green]")
 
 
 @app.command("import-stream")
@@ -141,8 +181,18 @@ def import_stream(recording_id: str,
 
 @app.command()
 def process(recording_id: str, browser: str = typer.Option(None)):
-    """Download, transcribe, frames and radar in one go."""
-    download(recording_id, browser=browser)
+    """Everything for one class video: download (if needed), transcript, boards,
+    board reading (local GPU) and the radar."""
+    from ..integrations.recordings import catalog
+    g = guarded(catalog.find, recording_id)
+    if not g.get("file"):  # attach sets it; a Stream transcript alone has no video
+        download(recording_id, browser=browser)
     transcribe(recording_id, model=None, backend=None, quality=None)
-    frames(recording_id, threshold=None, every=None, no_ocr=False)
-    radar(recording_id, minimum=4)
+    frames(recording_id, scenes=False, threshold=None, every=None, no_ocr=True)
+    try:
+        read_boards(recording_id, all_frames=False)
+    except (SystemExit, typer.Exit):
+        console.print("[yellow]Boards not read (needs the vision extra and a GPU).[/yellow]")
+    from ..vault import index
+    index.reindex_subject(g["subject"])
+    radar(recording_id, minimum=5)
