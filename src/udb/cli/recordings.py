@@ -1,4 +1,6 @@
 """Class recordings: discover, download, transcribe, frames, radar."""
+from pathlib import Path
+
 import typer
 from rich.table import Table
 
@@ -88,23 +90,53 @@ def frames(recording_id: str, threshold: float = typer.Option(None),
 
 
 @app.command()
-def radar(recording_id: str, minimum: int = typer.Option(4)):
-    """Everything the class said about exams, deadlines, dates and grades."""
-    from ..integrations.recordings import catalog
+def radar(recording_id: str, minimum: int = typer.Option(5)):
+    """What the class said about exams, deadlines, date changes, grades and announcements."""
+    from ..integrations.recordings import catalog, stream
     from ..integrations.recordings import radar as rd
     g = guarded(catalog.find, recording_id)
     if not g.get("source_id"):
-        die(f"{recording_id} is not downloaded yet.")
-    hits = guarded(rd.scan, g["subject"], g["source_id"], minimum=minimum)
+        die(f"{recording_id} has no transcript yet (transcribe it or import-stream).")
+    hits = guarded(rd.scan, g["subject"], g["source_id"], minimum=minimum,
+                   on=stream.class_day(g))
     if not hits:
-        console.print("[green]Nothing about assessments in this recording.[/green]")
+        console.print("[green]Nothing about exams, deadlines or announcements.[/green]")
         return
     console.print(f"[yellow]{len(hits)} mentions[/yellow] in {g['title']}\n")
-    for h in hits:
-        console.print(f"[bold]{anchors.hhmmss(h['t_start'])}[/bold]  ({h['points']} pts)\n  {h['quote']}")
-        clues = h["why"]["dates"] + h["why"]["percents"]
-        if clues:
-            console.print(f"  [cyan]{', '.join(clues)}[/cyan]")
+    for h in sorted(hits, key=lambda h: h["t_start"]):
+        dates = ", ".join(d["date"] + ("~" if d["approx"] else "") for d in h["dates"])
+        console.print(f"[bold]{anchors.hhmmss(h['t_start'])}[/bold] "
+                      f"[magenta]{' '.join(h['categories'])}[/magenta]"
+                      + (f" [cyan]→ {dates}[/cyan]" if dates else ""))
+        console.print(f"  {h['quote'][:400]}")
+
+
+def _stream_file(recording_id: str) -> Path | None:
+    name = f"udb-stream-{recording_id.upper()}.json"
+    places = [Path.home() / "Downloads", *Path("/mnt/c/Users").glob("*/Downloads")]
+    found = [p / name for p in places if (p / name).exists()]
+    return max(found, key=lambda p: p.stat().st_mtime) if found else None
+
+
+@app.command("stream-js")
+def stream_js(recording_id: str):
+    """JavaScript that saves a Stream transcript (run it on the Stream page, Claude in Chrome)."""
+    from ..integrations.recordings import stream
+    print(stream.extract_js(recording_id))
+
+
+@app.command("import-stream")
+def import_stream(recording_id: str,
+                  file: Path = typer.Argument(None, help="Default: udb-stream-<ID>.json in Downloads")):
+    """Turn a saved Stream transcript into the recording's citable transcript."""
+    from ..integrations.recordings import stream
+    file = file or _stream_file(recording_id)
+    if not file:
+        die(f"udb-stream-{recording_id.upper()}.json not found in Downloads; pass the path.")
+    g = guarded(stream.import_transcript, recording_id, file)
+    console.print(f"[green]{g['id']}: {g['segments']} segments from Stream → {g['source_id']} "
+                  f"({g['title']}, {g.get('date') or 'no date'})[/green]")
+    radar(recording_id, minimum=5)
 
 
 @app.command()

@@ -292,21 +292,25 @@ def recording_board(subject: str = "") -> str:
 
 
 @server.tool()
-def recording_radar(recording_id: str, minimum: int = 4) -> str:
-    """What a recording said about exams, deadlines, dates and percentages. No model:
-    it only finds and quotes, so it cannot invent an assessment."""
-    from ..integrations.recordings import catalog, radar
+def recording_radar(recording_id: str, minimum: int = 5) -> str:
+    """What a recording said about exams, deadlines, date changes, grades, "this is on the
+    exam" and announcements, with relative dates resolved to the class day. No model: it
+    only finds and quotes, so it cannot invent an assessment. Present hits as "dicho en
+    clase, por confirmar" unless Moodle or mail confirms them."""
+    from ..integrations.recordings import catalog, radar, stream
     g = catalog.find(recording_id)
     if not g.get("source_id"):
-        raise ValueError(f"{g['id']} is not downloaded. Run: udb recording download {g['id']}")
-    hits = radar.scan(g["subject"], g["source_id"], minimum=minimum)
-    return ok({"recording": g["title"], "subject": g["subject"], "source_id": g["source_id"],
-               "hits": [{"t": anchors.hhmmss(h["t_start"]), "quote": h["quote"],
-                         "context": h["context"], "dates": h["why"]["dates"],
-                         "percents": h["why"]["percents"],
+        raise ValueError(f"{g['id']} has no transcript. Transcribe it or run "
+                         f"udb recording import-stream {g['id']}")
+    hits = radar.scan(g["subject"], g["source_id"], minimum=minimum, on=stream.class_day(g))
+    return ok({"recording": g["title"], "subject": g["subject"], "class_date": g.get("date"),
+               "source_id": g["source_id"],
+               "hits": [{"t": anchors.hhmmss(h["t_start"]), "categories": h["categories"],
+                         "dates": h["dates"], "quote": h["quote"], "context": h["context"],
                          "anchor": anchors.format_anchor(g["source_id"], g["source_id"],
                                                          h["quote"][:90], t_start=h["t_start"],
-                                                         t_end=h["t_end"])} for h in hits]})
+                                                         t_end=h["t_end"])}
+                        for h in sorted(hits, key=lambda h: h["t_start"])]})
 
 
 @server.tool()

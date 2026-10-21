@@ -1,8 +1,11 @@
 """Outlook (Microsoft 365 or outlook.com) over Microsoft Graph.
 
-Login uses the device-code flow: `udb mail login <id>` prints a short code,
-you approve it on any device (your phone works), and the token cache is saved
-under the secrets folder. Needs `pip install udb-copilot[outlook]` (msal) and
+Login is OAuth authorization code + PKCE: `udb mail login <id>` prints a
+Microsoft link; sign in on any device, then paste back the `http://localhost`
+URL the browser ends on (it does not need to load). From scripts or a phone,
+run it in two steps: `--start` prints the link, `--finish <url>` completes it.
+`--device` uses the device-code flow, which many tenants block since 2025.
+The token cache is saved under the secrets folder. Needs `pip install udb-copilot[outlook]` (msal) and
 an app registration's client id in the account:
 
     - id: udb
@@ -25,7 +28,10 @@ import httpx
 from .base import MailError, Message, Query, matches, safe_name, secret_from_env, secret_path
 
 GRAPH = "https://graph.microsoft.com/v1.0/me"
-SCOPES = ["Mail.Read", "User.Read"]
+# Files.ReadWrite is what Graph demands to read shared links (class recordings);
+# udb never writes files. offline_access is added by MSAL itself.
+SCOPES = ["User.Read", "Mail.Read", "Files.ReadWrite"]
+REDIRECT = "http://localhost"
 TIMEOUT = 20.0
 
 
@@ -58,7 +64,49 @@ def _save(cache, path: Path) -> None:
             pass
 
 
-def login(account: dict) -> str:
+def _pending(account: dict) -> Path:
+    return secret_path(account).with_suffix(".pending.json")
+
+
+def login_start(account: dict) -> str:
+    """Step 1: the sign-in link. The PKCE flow waits in a private file until step 2."""
+    import json
+    app, _, _ = _app(account)
+    flow = app.initiate_auth_code_flow(SCOPES, redirect_uri=REDIRECT,
+                                       login_hint=account.get("address"), prompt="select_account")
+    pending = _pending(account)
+    pending.parent.mkdir(parents=True, exist_ok=True)
+    pending.touch(mode=0o600, exist_ok=True)
+    pending.write_text(json.dumps(flow), encoding="utf-8")
+    return flow["auth_uri"]
+
+
+def login_finish(account: dict, redirected_url: str) -> str:
+    """Step 2: the URL the browser ended on (http://localhost/?code=...)."""
+    import json
+    from urllib.parse import parse_qs, urlparse
+    pending = _pending(account)
+    if not pending.exists():
+        raise MailError(f"no login in progress for {account['id']}; run --start first")
+    flow = json.loads(pending.read_text(encoding="utf-8"))
+    params = {k: v[0] for k, v in parse_qs(urlparse(redirected_url.strip()).query).items()}
+    if "error" in params:
+        raise MailError(f"Microsoft refused: {params.get('error_description', params['error'])}")
+    app, cache, path = _app(account)
+    result = app.acquire_token_by_auth_code_flow(flow, params)
+    if "access_token" not in result:
+        raise MailError(f"login failed: {result.get('error_description', result.get('error'))}")
+    pending.unlink(missing_ok=True)
+    _save(cache, path)
+    return path.as_posix()
+
+
+def login(account: dict, device: bool = False) -> str:
+    if not device:
+        print("Open this link, sign in, and paste the address the browser ends on "
+              "(http://localhost/..., it will not load):\n")
+        print(login_start(account) + "\n")
+        return login_finish(account, input("URL: "))
     app, cache, path = _app(account)
     flow = app.initiate_device_flow(scopes=SCOPES)
     if "user_code" not in flow:

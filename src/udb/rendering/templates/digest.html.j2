@@ -42,6 +42,10 @@
   <h2 style="font-size:15px;margin:18px 0 6px;">Anuncios</h2>
   <ul style="margin:0;padding-left:18px;">{% for a in d.classroom.announcements %}<li><b>{{ a.subject }}</b> · {{ a.topic }} — {{ a.author }}<br><span style="color:#6b6862;">{{ a.text }}</span></li>{% endfor %}</ul>
 {% endif %}
+{% if d.said_in_class %}
+  <h2 style="font-size:15px;margin:18px 0 6px;">Dicho en clase <span style="font-weight:400;color:#6b6862;">(por confirmar)</span></h2>
+  <ul style="margin:0;padding-left:18px;">{% for x in d.said_in_class %}<li><b>{{ x.subject }}</b> · clase del {{ x.class_date }} · min {{ x.t // 60 }}:{{ '%02d' % (x.t % 60) }}{% if x.dates %} · <b>{{ x.dates | join(', ') }}</b>{% endif %}<br><span style="color:#6b6862;">«{{ x.quote }}»</span></li>{% endfor %}</ul>
+{% endif %}
 {% if d.mail %}
   <h2 style="font-size:15px;margin:18px 0 6px;">Correos</h2>
   <ul style="margin:0;padding-left:18px;">{% for m in d.mail[:15] %}<li>{{ m.sender }}: <b>{{ m.subject }}</b> <span style="color:#6b6862;">({{ m.account }})</span></li>{% endfor %}</ul>

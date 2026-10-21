@@ -118,12 +118,41 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
         data["empty"] = not (data["classroom"]["changed_assignments"] or announcements or labelled)
         return data
 
+    data["said_in_class"] = _source(sources, "recordings", lambda: said_in_class(today), [])
     items = countdown(rows, today)
     data["classes_today"] = classes_today(today)
     data["countdown"] = items
     data["due_soon"] = [i for i in items if i["days"] <= DUE_SOON_DAYS and not i["submitted"]]
     data["events_today"] = _source(sources, "calendar", lambda: _events_today(today), [])
     return data
+
+
+SAID_DAYS = 14
+
+
+def said_in_class(today: date, days: int = SAID_DAYS, limit: int = 8) -> list[dict]:
+    """Radar hits from classes of the last `days` days: dates still ahead, or no date but
+    a change, an announcement or "this will be on the exam". Spoken, so "por confirmar"."""
+    from ..integrations.recordings import catalog, radar, stream
+    out = []
+    for g in catalog.load():
+        day = stream.class_day(g)
+        if not g.get("source_id") or not day or (today - day).days > days or day > today:
+            continue
+        try:
+            hits = radar.scan(g["subject"], g["source_id"], on=day)
+        except FileNotFoundError:
+            continue
+        for h in hits:
+            ahead = [d for d in h["dates"] if d["date"] >= today.isoformat()]
+            loud = {"change", "tested", "announce"} & set(h["categories"])
+            if not ahead and not loud:
+                continue
+            out.append({"subject": g["subject"], "recording": g["id"], "class_date": day.isoformat(),
+                        "t": int(h["t_start"]), "categories": h["categories"],
+                        "dates": [d["date"] for d in ahead], "quote": h["quote"][:300],
+                        "points": h["points"]})
+    return sorted(out, key=lambda x: -x["points"])[:limit]
 
 
 def _events_today(today: date) -> list[dict]:
@@ -159,6 +188,13 @@ def as_text(d: dict) -> str:
                 mark = " ✓ entregada" if i["submitted"] else ""
                 weight = f" · {i['weight']}%" if i["weight"] else ""
                 lines.append(f"  - {i['days']:>2} d · {i['subject']} · {i['label']}{weight}{mark}")
+    if d.get("said_in_class"):
+        lines.append("\nDicho en clase (por confirmar):")
+        for x in d["said_in_class"]:
+            when = f" → {', '.join(x['dates'])}" if x["dates"] else ""
+            mm, ss = divmod(x["t"], 60)
+            lines.append(f"  - {x['subject']} {x['class_date']} [{mm}:{ss:02d}]{when}: "
+                         f"«{x['quote'][:160]}»")
     cr = d["classroom"]
     if cr["changed_assignments"]:
         lines.append("\nActividades nuevas o cambiadas en Moodle:")

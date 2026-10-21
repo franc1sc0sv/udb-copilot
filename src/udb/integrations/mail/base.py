@@ -64,8 +64,10 @@ class MailError(RuntimeError):
     pass
 
 
-def accounts() -> list[dict]:
-    return load_yaml("mail.yaml").get("accounts", [])
+def accounts(include_disabled: bool = False) -> list[dict]:
+    """Configured accounts; `enabled: false` ones are skipped by digest and search."""
+    found = load_yaml("mail.yaml").get("accounts", [])
+    return found if include_disabled else [a for a in found if a.get("enabled", True)]
 
 
 def filters() -> list[dict]:
@@ -73,7 +75,7 @@ def filters() -> list[dict]:
 
 
 def get_account(account_id: str) -> dict:
-    for acc in accounts():
+    for acc in accounts(include_disabled=True):
         if acc["id"] == account_id:
             return acc
     raise MailError(f"unknown mail account: {account_id} (see config/mail.yaml)")
