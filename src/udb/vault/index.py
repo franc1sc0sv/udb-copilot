@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS sources (
 CREATE TABLE IF NOT EXISTS chunks (
   id INTEGER PRIMARY KEY, source_id TEXT, subject TEXT, ord INTEGER,
   page INTEGER, t_start REAL, t_end REAL,
-  char_start INTEGER, char_end INTEGER, text TEXT
+  char_start INTEGER, char_end INTEGER, text TEXT, frame INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS chunks_source ON chunks(source_id);
@@ -34,7 +34,7 @@ CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
   INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.id, old.text);
 END;
 """
-VERSION = 2  # bump when SCHEMA changes; an old index is rebuilt from scratch
+VERSION = 3  # bump when SCHEMA changes; an old index is rebuilt from scratch
 
 
 def db_path() -> Path:
@@ -79,10 +79,11 @@ def clear_source(con: sqlite3.Connection, source_id: str) -> None:
 
 def add_chunks(con: sqlite3.Connection, source_id: str, subject: str, chunks: list[dict]) -> int:
     rows = [(source_id, subject, i, c.get("page"), c.get("t_start"), c.get("t_end"),
-             c.get("char_start"), c.get("char_end"), c["text"]) for i, c in enumerate(chunks)]
+             c.get("char_start"), c.get("char_end"), c["text"], c.get("frame"))
+            for i, c in enumerate(chunks)]
     con.executemany(
         "INSERT INTO chunks (source_id, subject, ord, page, t_start, t_end, char_start,"
-        " char_end, text) VALUES (?,?,?,?,?,?,?,?,?)", rows)
+        " char_end, text, frame) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
     return len(rows)
 
 
@@ -94,7 +95,7 @@ def fts_query(text: str) -> str:
 
 def search(query: str, subject: str | None = None, kind: str | None = None,
            class_number: int | None = None, limit: int = 8) -> list[dict]:
-    sql = ("SELECT c.id, c.source_id, c.subject, c.page, c.t_start, c.t_end,"
+    sql = ("SELECT c.id, c.source_id, c.subject, c.page, c.t_start, c.t_end, c.frame,"
            " c.char_start, c.char_end, c.text, s.title, s.kind, s.class,"
            " bm25(chunks_fts) AS score"
            " FROM chunks_fts JOIN chunks c ON c.id = chunks_fts.rowid"
@@ -163,10 +164,24 @@ def load_segments(subject: str, source_id: str) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8")).get("segments", [])
 
 
+def frame_chunks(code: str, source_id: str) -> list[dict]:
+    """What was read on each board still of a recording, one chunk per still, citable
+    with `t=` and `frame=`. Intro cards and half-written stills are left out."""
+    from ..integrations.recordings.frames import frame_index
+    out = []
+    for f in frame_index(code, source_id):
+        text = (f.get("text") or "").strip()
+        if not text or f.get("kind") in ("growth", "branding") or f.get("t") is None:
+            continue
+        out.append({"text": text, "t_start": float(f["t"]), "t_end": float(f["t"]),
+                    "frame": int(f["n"])})
+    return out
+
+
 def chunks_for(code: str, source_id: str) -> list[dict]:
     segments = load_segments(code, source_id)
     if segments:
-        return chunk_segments(segments)
+        return chunk_segments(segments) + frame_chunks(code, source_id)
     return chunk_pages(load_pages(code, source_id))
 
 

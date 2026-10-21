@@ -1,14 +1,19 @@
-"""Does the class note cover every topic the material opens?
+"""Does the class note cover every topic the material opens, and use all of it?
 
 The citation check answers "is what is written true?". This answers the other
 half: "is everything written that should be?". Topics come from the
 structure of the material itself (headings and bold labels in the HTML pages)
 and from the syllabus lines assigned to the class.
+
+Citations v3 adds the material itself: every source assigned to the class must
+be cited at least once (`source-not-used`), and pages of a cited source that no
+paragraph uses are listed as ranges (`pages-not-covered`). Pages under
+MIN_PAGE_WORDS (titles, agendas, blank slides) do not count.
 """
 import re
 from pathlib import Path
 
-from ..core import notes
+from ..core import anchors, notes
 from ..core.findings import Finding
 from ..core.paths import relative, subject_codes, subject_dir
 from ..core.text import normalize
@@ -33,6 +38,8 @@ STOPWORDS = {
     "anterior", "veamos", "vamos", "haciendo", "uso", "mediante",
 }
 
+MIN_PAGE_WORDS = 15
+COURSE_KINDS = {"course", "exercise"}
 THRESHOLD = 0.6
 MIN_KEYWORDS = 2
 CLASS_LINE_RE = re.compile(r"^\s*[*_]*\s*Clase\s+(\d+)\b", re.IGNORECASE)
@@ -108,6 +115,82 @@ def check_class(code: str, number: int, note_path: Path) -> list[Finding]:
     return findings
 
 
+def _ranges(numbers: list[int]) -> str:
+    out, run = [], []
+    for n in sorted(numbers):
+        if run and n == run[-1] + 1:
+            run.append(n)
+        else:
+            if run:
+                out.append(f"{run[0]}–{run[-1]}" if len(run) > 1 else str(run[0]))
+            run = [n]
+    if run:
+        out.append(f"{run[0]}–{run[-1]}" if len(run) > 1 else str(run[0]))
+    return ", ".join(out)
+
+
+def _citable_pages(code: str, source_id: str) -> list[int]:
+    from ..vault import index
+    return [p["page"] for p in index.load_pages(code, source_id)
+            if len((p.get("text") or "").split()) >= MIN_PAGE_WORDS]
+
+
+def _cited(note_path: Path) -> dict[str, set]:
+    """source id -> pages cited (an empty set for time or frame anchors)."""
+    definitions, _ = anchors.parse(note_path.read_text(encoding="utf-8", errors="replace"))
+    out: dict[str, set] = {}
+    for a in definitions.values():
+        if a.source_id and not a.error:
+            pages = out.setdefault(a.source_id, set())
+            if a.fields.get("page", "").isdigit():
+                pages.add(int(a.fields["page"]))
+    return out
+
+
+def material_coverage(code: str, number: int, note_path: Path) -> dict:
+    """How much of the class material the note uses: per source and overall."""
+    from ..vault import classes, index
+    cited = _cited(note_path) if note_path.exists() else {}
+    per_source, total, used = [], 0, 0
+    for rec in classes.sources_for(code, number):
+        pages = _citable_pages(code, rec["id"])
+        timed = bool(index.load_segments(code, rec["id"]))
+        if not pages and not timed:
+            continue  # nothing readable to cite (unsupported file, empty page)
+        hit = cited.get(rec["id"])
+        if pages:
+            covered = sorted(set(pages) & (hit or set()))
+            total += len(pages)
+            used += len(covered)
+        else:
+            covered = []
+        per_source.append({"id": rec["id"], "title": rec.get("title"), "kind": rec.get("kind"),
+                           "cited": hit is not None, "pages": pages, "covered": covered,
+                           "timed": timed})
+    return {"sources": per_source,
+            "percent": round(100 * used / total) if total else None}
+
+
+def check_material(code: str, number: int, note_path: Path) -> list[Finding]:
+    if notes.is_stub(note_path):
+        return []
+    rel = relative(note_path)
+    out = []
+    for s in material_coverage(code, number, note_path)["sources"]:
+        label = f"{s['id']} ({(s['title'] or '')[:50]})"
+        if not s["cited"]:
+            out.append(Finding(rel, 1, "source-not-used",
+                               f"{label} belongs to this class and is never cited",
+                               level="error" if s["kind"] in COURSE_KINDS else "warning"))
+            continue
+        missing = [p for p in s["pages"] if p not in s["covered"]]
+        if missing and s["covered"]:
+            out.append(Finding(rel, 1, "pages-not-covered",
+                               f"{label}: pages {_ranges(missing)} are not used by any paragraph",
+                               level="warning"))
+    return out
+
+
 def check_subject(code: str | None = None) -> list[Finding]:
     if code is None:
         return [f for c in subject_codes() for f in check_subject(c)]
@@ -120,6 +203,7 @@ def check_subject(code: str | None = None) -> list[Finding]:
         m = re.match(r"(\d+)", folder.name)
         if note.exists() and m:
             findings.extend(check_class(code, int(m.group(1)), note))
+            findings.extend(check_material(code, int(m.group(1)), note))
     return findings
 
 

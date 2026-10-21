@@ -89,3 +89,24 @@ def test_report_feeds_status(indexed):
     found = checks.check_subject("DEMO")
     checks.write_report(found, "all")
     assert checks.counts_for(path)["errors"] >= 1
+
+
+def test_repeated_citation_is_fixed_keeping_the_last(indexed):
+    path = indexed / CLASS
+    path.write_text(path.read_text().replace(
+        "El voltaje es igual a la corriente por la resistencia.[^c1]",
+        "El voltaje es igual a la corriente por la resistencia.[^c1] Se mide en voltios.[^c1]"))
+    found = citations.check_paths([path])
+    rep = [f for f in found if f.code == "repeated-citation"]
+    assert len(rep) == 1 and rep[0].fix == {"old": "[^c1]", "new": ""}
+    checks.apply_fixes(rep)
+    assert "resistencia. Se mide en voltios.[^c1]" in path.read_text()
+    assert "repeated-citation" not in codes(citations.check_paths([path]), "warning")
+
+
+def test_claude_examples_and_analogies_need_no_citation(indexed):
+    path = indexed / CLASS
+    path.write_text(path.read_text().replace(
+        "## Explicación\n",
+        "## Explicación\n\n> [!analogy]\n> Piensa en una manguera: la presión empuja el agua.\n\n"))
+    assert "uncited-paragraph" not in codes(citations.check_paths([path]))

@@ -33,13 +33,14 @@ def register(app: typer.Typer) -> None:
         for s in data["subjects"]:
             table = Table(title=f"{s['code']} — {s['name']}", title_justify="left", pad_edge=False,
                           padding=(0, 1))
-            for col in ("#", "date", "mat", "rec", "note", "methods", "ex", "task", "html",
-                        "err", "stage"):
+            for col in ("#", "date", "mat", "cov", "rec", "note", "methods", "ex", "task",
+                        "html", "err", "stage"):
                 table.add_column(col, no_wrap=True)
             for r in s["classes"]:
                 colour = STAGE_COLOUR.get(r["stage"], "yellow")
+                cov = r.get("material_covered")
                 table.add_row(f"{r['class']:02d}", r["date"][5:], str(r["material"]),
-                              r["recording"][:5], r["explanation"][:5],
+                              "-" if cov is None else f"{cov}%", r["recording"][:5], r["explanation"][:5],
                               (f"{len(r['methods'])}" + ("!" if any(m["status"] == "conflict"
                                                                     for m in r["methods"]) else ""))
                               if r["methods"] else "-",

@@ -46,15 +46,19 @@ def vault_search(query: str, subject: str = "", class_number: int = 0, kind: str
             sections[key] = {p["page"]: p.get("section") for p in index.load_pages(*key)}
     return ok([{"chunk_id": r["id"], "source_id": r["source_id"], "title": r["title"],
                 "kind": r["kind"], "class": r["class"], "page": r["page"],
+                "frame": r["frame"],
                 "section": sections[(r["subject"], r["source_id"])].get(r["page"]),
                 "t_start": r["t_start"], "t_end": r["t_end"], "excerpt": r["text"][:400]}
                for r in rows])
 
 
 @server.tool()
-def vault_quote(chunk_id: int, key: str = "c1", substring: str = "") -> str:
-    """The EXACT text of a chunk and its ready-made anchor. The only valid way to cite.
-    Pass `substring` to quote part of the chunk; it must be in the chunk."""
+def vault_quote(chunk_id: int, key: str = "c1", substring: str = "", exact: bool = False) -> str:
+    """The EXACT text to quote and its ready-made anchor. The only valid way to cite.
+    By default it returns a passage: the whole sentences (1 to 3) around `substring`,
+    so one citation backs a whole paragraph (citations v3). `exact=True` quotes
+    `substring` as given, for a literal definition shown in quotes in the note.
+    `substring` must be in the chunk. Board stills (frame) cite with t= and frame=."""
     row = index.chunk(int(chunk_id))
     if not row:
         raise ValueError(f"chunk_id {chunk_id} does not exist")
@@ -62,7 +66,10 @@ def vault_quote(chunk_id: int, key: str = "c1", substring: str = "") -> str:
     wanted = substring.strip()
     if wanted and not contains(text, wanted):
         raise ValueError("that text is not in the chunk. Quote only what you see.")
-    quote = wanted or text[:240]
+    from ..core.text import passage
+    quote = wanted if (exact and wanted) else passage(text, wanted)
+    if not contains(text, quote):  # passage() never invents, but fail safe
+        quote = wanted or text[:240]
     page = row["page"]
     pages = {p["page"]: p for p in index.load_pages(row["subject"], row["source_id"])}
     if page is not None and row["t_start"] is None:
@@ -74,10 +81,14 @@ def vault_quote(chunk_id: int, key: str = "c1", substring: str = "") -> str:
     anchor = anchors.format_anchor(key=key, source_id=row["source_id"], quote=quote,
                                    page=page if row["t_start"] is None else None,
                                    t_start=row["t_start"], t_end=row["t_end"],
+                                   frame=row.get("frame"),
                                    url=row["url"], retrieved=row["retrieved_at"] if row["url"] else None)
+    voice = ("board read by a vision model: cite it as the board, never as words the teacher "
+             "said; descriptions after 'Figura:' are not quotable") if row.get("frame") else None
     return ok({"exact_text": quote, "anchor": anchor, "source": row["source_id"],
-               "title": row["title"], "page": page,
-               "section": (pages.get(page) or {}).get("section"), "full_chunk": text})
+               "title": row["title"], "page": page, "frame": row.get("frame"),
+               "section": (pages.get(page) or {}).get("section"), "full_chunk": text,
+               **({"note": voice} if voice else {})})
 
 
 @server.tool()

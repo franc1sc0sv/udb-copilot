@@ -8,8 +8,10 @@ their language. **Everything written into vault files is in Spanish.**
 1. **The teacher's method is the law.** Call `method_get` before solving anything.
    `NOT_FOUND` means stop; `conflict` means ask. Every solution step names its method step.
 2. **Never invent a citation.** `vault/*/sources` and `vault/*/derived` cannot be opened.
-   Cite only through `vault_search` then `vault_quote`. Own content only in `> [!model]`
-   blocks with `reason` and `basis`, at most 30%.
+   Cite only through `vault_search` then `vault_quote`. **One citation per paragraph**, at
+   its end, quoting a passage that backs it all; never every sentence. Use every source of
+   the class. Claude's own voice only in boxes: `> [!model]` claims (with `reason` and
+   `basis`, at most 30%), `> [!example]` / `> [!analogy]` for the student (no citation).
 3. **Plain Spanish.** 25 words per sentence at most, one idea each, active voice.
 4. **One diagram per note**, type chosen with `diagram_suggest`.
 5. **Exercises are HTML step cards** built with `udb.rendering.exercise` (see `/udb-exercise`).

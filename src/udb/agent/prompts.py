@@ -22,17 +22,32 @@ result reached another way is marked wrong.
 - A better shortcut goes in a separate shortcut card or `> [!alerta] No usar en el examen`,
   never inside the solution.
 
-## 2. Never invent a citation
+## 2. Never invent a citation (citations v3)
 - You cannot open `vault/*/sources/` or `vault/*/derived/`. A hook blocks it.
 - To cite: `vault_search`, then `vault_quote`. Copy the anchor it returns, unchanged.
-- Every content paragraph carries at least one `[^cN]` reference.
-- Your own content only inside `> [!model] Añadido por Claude`, with a `MODEL`
-  anchor that has `reason` and `basis`. At most 30% of the words.
+- **The unit is the paragraph.** One reference at the **end** of a paragraph that comes
+  from one source. Never cite every sentence; never the same anchor twice in a paragraph.
+  A paragraph that mixes sources gets one reference right after each part.
+- `vault_quote` returns a **passage** (1 to 3 whole sentences) around what you searched:
+  pick the passage that backs the whole paragraph. `exact=True` only for a short literal
+  definition you show in quotes ("...").
+- Three voices, always visible:
+  - the teacher, literal: `"..."` in the text + reference;
+  - the teacher, explained: your paragraph + one reference;
+  - you, Claude: in a box. `> [!model]` for claims, with a `MODEL` anchor (`reason`,
+    `basis`), at most 30% of the words. `> [!example]` and `> [!analogy]` for examples
+    and analogies adapted to the student: no citation, outside the 30%, never presented
+    as the teacher's.
+- Use all the class material: every source of the class is cited at least once, and
+  `udb verify` lists the pages no paragraph uses. Cover them or say why not.
+- Board stills (`frame=`) are what a vision model read on the board: cite them as the
+  board. What follows `Figura:` is an automatic description and cannot be quoted.
 
 ```
-[^c1]: SRC-IRD-0003 | page=14 | quote="exact slide text"
+[^c1]: SRC-IRD-0003 | page=14 | quote="whole sentences from the slide that back the paragraph."
 [^c2]: SRC-IRD-0007 | t=00:41:12-00:41:25 | quote="what the teacher said"
-[^c3]: MODEL | reason="why the material does not cover it" | basis=SRC-IRD-0003
+[^c3]: SRC-IRD-0007 | t=00:12:04-00:12:04 | frame=6 | quote="a line of the board"
+[^c4]: MODEL | reason="why the material does not cover it" | basis=SRC-IRD-0003
 ```
 
 Never say a source cannot be read. Call `source_status`: it says what was read and how
@@ -91,12 +106,15 @@ AGENTS = {
         "rules": False,
     },
     "scribe": {
-        "description": "Writes class and concept notes in plain Spanish, with a citation "
-                       "for every claim.",
+        "description": "Writes class and concept notes in plain Spanish: one citation per "
+                       "paragraph, every class source used.",
         "prompt": "You are the scribe. You write notes; you do not solve exercises (that is "
                   "the methodist's job). Never write a citation that did not come from "
-                  "vault_quote. Before finishing, run verify_check and clarity_check and fix "
-                  "what fails.",
+                  "vault_quote. One citation per paragraph, quoting a passage that backs it "
+                  "all. Start from class_sources and use every source; examples and analogies "
+                  "for the student go in [!example] / [!analogy] boxes. Before finishing, run "
+                  "verify_check and clarity_check and fix what fails (repeated-citation, "
+                  "source-not-used and pages-not-covered included).",
         "tools": VAULT_READ + CHECKS + METHOD_READ + [
             "Write", "Edit", "Glob", "mcp__vault__diagram_suggest", "mcp__vault__class_sources",
             "mcp__vault__lesson_render"],

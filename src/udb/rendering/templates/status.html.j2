@@ -40,7 +40,7 @@ th { color: var(--muted); font-weight: 600; }
   {% if s.hint %}<div class="next warn">{{ s.hint }}</div>{% endif %}
   {% if s.classes %}
   <div class="wrap"><table>
-    <tr><th>#</th><th>fecha</th><th>título</th><th>material</th><th>grabación</th><th>explicación</th><th>método</th><th>ejercicios</th><th>tarea</th><th>lección</th><th>citas</th><th>estado</th></tr>
+    <tr><th>#</th><th>fecha</th><th>título</th><th>material</th><th>grabación</th><th>explicación</th><th>método</th><th>ejercicios</th><th>tarea</th><th>lección</th><th>cubierto</th><th>citas</th><th>estado</th></tr>
     {% for r in s.classes %}
     <tr>
       <td>{{ '%02d' % r['class'] }}</td><td>{{ r.date }}</td><td>{{ r.title }}</td>
@@ -50,6 +50,7 @@ th { color: var(--muted); font-weight: 600; }
       <td>{{ r.exercises|length or '—' }}</td>
       <td>{{ {'n/a':'no aplica','written':'resuelta','missing':'falta'}[r.assignment] }}{% for t in r.tasks %} · {{ t.status }}{% endfor %}</td>
       <td class="{{ 'ok' if r.lesson else '' }}">{{ 'sí' if r.lesson else '—' }}</td>
+      <td class="{{ 'bad' if r.material_covered is not none and r.material_covered < 60 else '' }}">{{ '%d%%' % r.material_covered if r.material_covered is not none else '-' }}</td>
       <td class="{{ 'bad' if r.verify_errors else '' }}">{{ r.verify_errors }} / {{ r.verify_warnings }}</td>
       <td class="stage {{ r.stage|replace(' ', '-') }}">{{ labels[r.stage] }}</td>
     </tr>

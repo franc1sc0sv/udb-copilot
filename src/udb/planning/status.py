@@ -8,6 +8,7 @@ import json
 from datetime import date
 
 from .. import checks
+from ..checks import coverage
 from ..core import lang, notes
 from ..core.paths import get_subject, index_dir, subject_codes, subject_dir
 from ..vault import classes, figures, registry
@@ -82,6 +83,7 @@ def class_rows(code: str) -> list[dict]:
             "tasks": [{"id": t["id"], "status": t["status"]} for t in linked_tasks],
             "lesson": folder.has("lesson.html"),
             "figures": sum(1 for s in sources if s["id"] in figs),
+            "material_covered": coverage.material_coverage(code, folder.number, note)["percent"],
             "verify_errors": verify.get("errors", 0),
             "verify_warnings": verify.get("warnings", 0),
             "path": str(folder.path),

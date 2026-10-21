@@ -43,6 +43,49 @@ def split_sentences(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+PASSAGE_MAX_SENTENCES = 3
+PASSAGE_MIN_WORDS = 8
+PASSAGE_MAX_WORDS = 90
+# A line break also ends a "sentence": board text is one line per board line.
+_SENTENCE_END = re.compile(r"(?<=[.!?:;])\s+|\s*\n\s*")
+
+
+def passage(text: str, substring: str = "", sentences: int = PASSAGE_MAX_SENTENCES) -> str:
+    """Whole sentences of `text` that hold `substring` (or open the text), grown to at
+    least PASSAGE_MIN_WORDS and at most `sentences` sentences / PASSAGE_MAX_WORDS words.
+    The result is a verbatim slice of `text`, so it can be quoted and verified."""
+    spans, start = [], 0
+    for m in _SENTENCE_END.finditer(text):
+        spans.append((start, m.start()))
+        start = m.end()
+    if start < len(text):
+        spans.append((start, len(text)))
+    if not spans:
+        return text.strip()
+    # Chunks are word windows and may open mid-sentence: start at a sentence start.
+    first = next((i for i, (a, _) in enumerate(spans)
+                  if re.match(r"[A-ZÁÉÍÓÚÑ¿¡0-9\\(\[]", text[a:a + 2])), 0)
+    if substring:
+        hit = normalize(text).find(normalize(substring))
+        # normalize() keeps length for the common cases; fall back to the first sentence.
+        if hit >= 0:
+            first = next((i for i, (a, b) in enumerate(spans) if a <= hit < b + 1), 0)
+    last = first
+    while True:
+        words = len(text[spans[first][0]:spans[last][1]].split())
+        if substring:
+            covered = normalize(substring) in normalize(text[spans[first][0]:spans[last][1]])
+        else:
+            covered = True
+        if (covered and words >= PASSAGE_MIN_WORDS) or last + 1 >= len(spans) \
+                or last - first + 1 >= sentences:
+            break
+        if len(text[spans[first][0]:spans[last + 1][1]].split()) > PASSAGE_MAX_WORDS and covered:
+            break
+        last += 1
+    return text[spans[first][0]:spans[last][1]].strip()
+
+
 def count_syllables_es(word: str) -> int:
     word = strip_accents(word).lower()
     groups = 0

@@ -8,9 +8,10 @@ FIELD_RE = re.compile(r'(\w+)\s*=\s*(?:"([^"]*)"|(\S+))')
 TIME_RE = re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})$")
 SOURCE_ID_RE = re.compile(r"^SRC-[A-Z0-9]+-\d{4}$")
 
-# Locators the verifier can actually check. `line`, `char` and `frame` used to
-# be accepted and never checked; an anchor that cannot be checked is rejected.
-LOCATORS = ("page", "t", "url")
+# Locators the verifier can actually check; an anchor that cannot be checked is
+# rejected. `frame=` (a board still of a recording) is checked against the text read
+# from that still, so it always travels with `t=`.
+LOCATORS = ("page", "t", "url", "frame")
 
 
 @dataclass
@@ -72,7 +73,9 @@ def parse_definition(key: str, body: str, line: int) -> Anchor:
         return anchor
 
     if not set(LOCATORS) & set(anchor.fields):
-        anchor.error = "malformed-anchor: missing a locator (page=, t= or url=)"
+        anchor.error = "malformed-anchor: missing a locator (page=, t=, frame= or url=)"
+    elif "frame" in anchor.fields and not anchor.fields["frame"].isdigit():
+        anchor.error = f"malformed-anchor: frame={anchor.fields['frame']} is not a number"
     return anchor
 
 
@@ -90,17 +93,21 @@ def parse(text: str) -> tuple[dict[str, Anchor], set[str]]:
 
 def format_anchor(key: str, source_id: str, quote: str, page: int | None = None,
                   t_start: float | None = None, t_end: float | None = None,
-                  url: str | None = None, retrieved: str | None = None) -> str:
+                  url: str | None = None, retrieved: str | None = None,
+                  frame: int | None = None) -> str:
     parts = [source_id]
     if page is not None:
         parts.append(f"page={page}")
     if t_start is not None and t_end is not None:
         parts.append(f"t={hhmmss(t_start)}-{hhmmss(t_end)}")
+    if frame is not None:
+        parts.append(f"frame={frame}")
     if url:
         parts.append(f"url={url}")
     if retrieved:
         parts.append(f"retrieved={retrieved}")
-    clean = quote.replace('"', "'").strip()
+    # One line per definition: board text and passages may carry line breaks.
+    clean = re.sub(r"\s+", " ", quote.replace('"', "'")).strip()
     parts.append(f'quote="{clean}"')
     return f"[^{key}]: " + " | ".join(parts)
 

@@ -73,3 +73,15 @@ def test_branding_cards_are_not_boards():
     assert vision.is_branding("UNIVERSIDAD DON BOSCO\nUDB VIRTUAL\nEl Salvador")
     assert not vision.is_branding("UDB VIRTUAL\n\\( \\sum F_x = ma \\) T_1 cos θ + T_2 cos θ = m v^2/R")
     assert vision.clean("\\( T_1 \\sen\\theta \\)\nFigura: No hay figura.") == "\\( T_1 \\operatorname{sen}\\theta \\)"
+
+
+def test_passage_is_whole_sentences_and_verbatim():
+    from udb.core.text import contains, passage
+    chunk = ("forma de los pares. La fuerza neta es la suma de todas las fuerzas. "
+             "Si la fuerza neta es cero, el cuerpo no acelera. Por eso se dibuja el DCL.")
+    p = passage(chunk, "cuerpo no acelera")
+    assert p == "Si la fuerza neta es cero, el cuerpo no acelera."
+    assert passage(chunk).startswith("La fuerza neta")
+    assert contains(chunk, passage(chunk))
+    board = "\\( \\sum F_x = ma \\)\nT_1 cos θ + T_2 cos θ = m v^2 / R\nT_1 = (mg + T_2 sen θ) / sen θ"
+    assert "T_1 =" in passage(board, "T_1 = (mg")

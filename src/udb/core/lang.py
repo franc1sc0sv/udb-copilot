@@ -70,7 +70,11 @@ ES = {
     "step_block": r"^\s*(\*\*Paso\b|\d+\.\s)",
     "not_applicable": r"no-aplica:\s*([\d,\s]+)",
     # Callout labels in rendered pages.
-    "callouts": {"model": "Añadido por Claude", "alerta": "Aviso",
+    # Three voices: the teacher (cited text), the teacher explained (cited paragraph)
+    # and Claude, always in a labelled box.
+    "callouts": {"model": "Explicación de Claude", "example": "Ejemplo de Claude",
+                 "ejemplo": "Ejemplo de Claude", "analogy": "Analogía de Claude",
+                 "analogia": "Analogía de Claude", "alerta": "Aviso",
                  "metodo": "Método del profesor", "método": "Método del profesor",
                  "nota": "Nota", "tip": "Consejo"},
     "passive": r"\b(fue|fueron|es|son|era|eran|será|serán|ha sido|han sido)\s+\w+"

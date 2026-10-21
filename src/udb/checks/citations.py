@@ -1,9 +1,14 @@
 """Citation checks: every anchor points at text that really is in the source.
 
 What is verified: the source is registered and current, and the quote is in
-the derived text at the stated page, time window or snapshot. What is not:
-that the sentence says what the quote supports. `weak-support` flags the
-cases where the two share almost no words.
+the derived text at the stated page, time window, board still or snapshot.
+What is not: that the paragraph says what the quote supports. `weak-support`
+flags the cases where the two share almost no words.
+
+Citations v3 (docs/citations-v3.md): the unit is the paragraph. One reference at
+the end of a paragraph that comes from one source, quoting a passage (1 to 3
+sentences) that backs the whole paragraph. The same anchor twice in a paragraph
+is `repeated-citation`, and `udb verify --fix` keeps only the last one.
 """
 import re
 from pathlib import Path
@@ -16,8 +21,13 @@ from ..vault import index, registry
 
 MODEL_BUDGET = 0.30
 WINDOW_SLACK = 20.0
-MIN_QUOTE_WORDS = 4
-MIN_QUOTE_CHARS = 20
+MIN_QUOTE_WORDS = 8
+MIN_QUOTE_CHARS = 40
+SAME_SOURCE_MAX = 2  # distinct anchors of one source in a paragraph before suggesting a passage
+# Claude's own voice. `model` carries claims (with basis=, inside the 30 % budget);
+# examples and analogies adapted to the student need no citation and are outside it,
+# because the box tells the reader they are not the teacher's.
+FREE_CALLOUTS = {"example", "ejemplo", "analogy", "analogia", "analogía"}
 AMBIGUOUS_AFTER = 3
 
 
@@ -92,10 +102,8 @@ def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
 
     quote = anchor.quote
     out: list[Finding] = []
-    if len(quote.split()) < MIN_QUOTE_WORDS and len(quote) < MIN_QUOTE_CHARS:
-        out.append(Finding(path, anchor.line, "trivial-quote",
-                           f'quote "{quote}" is too short to prove anything; quote a full phrase',
-                           level="warning"))
+    if "frame" in anchor.fields:
+        return out + _check_frame(owner, source_id, anchor, path)
 
     if "t" in anchor.fields:
         window = anchors.parse_window(anchor.fields["t"])
@@ -142,6 +150,26 @@ def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
     return out
 
 
+def _check_frame(code: str, source_id: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
+    """A board still: the quote must be in the text read from that still."""
+    from ..integrations.recordings.frames import frame_index
+    n = int(anchor.fields["frame"])
+    frame = next((f for f in frame_index(code, source_id) if int(f["n"]) == n), None)
+    if frame is None:
+        return [Finding(path, anchor.line, "quote-not-found", f"{source_id} has no frame {n}")]
+    board, _, figure = (frame.get("text") or "").partition("Figura:")
+    if contains(board, anchor.quote):
+        return []
+    if contains(figure, anchor.quote):
+        # The model's description of a drawing is not on the board: never quotable.
+        return [Finding(path, anchor.line, "figure-description-quoted",
+                        f"{source_id} frame {n}: that text is the automatic description of a "
+                        "drawing, not something on the board; describe it in your own words "
+                        "in a > [!model] block instead")]
+    return [Finding(path, anchor.line, "quote-not-found",
+                    f'{source_id} frame {n} does not contain: "{anchor.quote}"')]
+
+
 MATH_RE = re.compile(r"\\\[.*?\\\]|\\\(.*?\\\)|\$\$.*?\$\$|\$[^$\n]+?\$", re.DOTALL)
 REF_SPLIT_RE = re.compile(r"\[\^([A-Za-z0-9_-]+)\]")
 
@@ -152,25 +180,78 @@ def _stems(text: str) -> set[str]:
     return {w[:5] for w in re.findall(r"[a-z]{5,}", normalize(prose))}
 
 
-def check_support(note: notes.Note, definitions: dict[str, anchors.Anchor]) -> list[Finding]:
-    """The sentence and its quote share no word stem: probably the wrong quote.
+def _prose(text: str) -> str:
+    return REF_SPLIT_RE.sub(" ", text)
 
-    Each reference is compared with the sentence right before it, not the
-    whole paragraph, and formulas are ignored on both sides.
-    """
+
+def check_support(note: notes.Note, definitions: dict[str, anchors.Anchor]) -> list[Finding]:
+    """A reference whose passage shares no word stem with its paragraph: probably the
+    wrong quote. The whole paragraph counts (v2 compared one sentence, which pushed
+    writers to cite every sentence); formulas are ignored on both sides."""
     out = []
     for block in note.blocks:
-        parts = REF_SPLIT_RE.split(block.text)
-        for i in range(1, len(parts), 2):
-            anchor = definitions.get(parts[i])
+        claim = _stems(_prose(block.text))
+        for key in dict.fromkeys(block.refs):
+            anchor = definitions.get(key)
             if not anchor or anchor.is_model or anchor.error:
                 continue
-            sentence = re.split(r"(?<=[.!?:])\s+", parts[i - 1].strip())[-1]
-            claim, quote = _stems(sentence), _stems(anchor.quote)
+            quote = _stems(anchor.quote)
             if len(claim) >= 4 and len(quote) >= 4 and not claim & quote:
                 out.append(Finding(note.path, block.start_line, "weak-support",
-                                   f"[^{parts[i]}] shares no word with the sentence it backs: "
-                                   f'"{sentence[:60]}"', level="warning"))
+                                   f"[^{key}] shares no word with its paragraph: "
+                                   f'"{_prose(block.text).strip()[:60]}"', level="warning"))
+    return out
+
+
+def check_density(note: notes.Note, definitions: dict[str, anchors.Anchor]) -> list[Finding]:
+    """The paragraph rule: one anchor per source per paragraph."""
+    out = []
+    for block in note.blocks:
+        seen: dict[str, int] = {}
+        for line in block.lines:
+            for key in REF_SPLIT_RE.findall(line):
+                seen.setdefault(key, 0)
+                seen[key] += 1
+        for i, line in enumerate(block.lines):
+            for key in REF_SPLIT_RE.findall(line):
+                if seen[key] > 1:
+                    # Not the last use in the paragraph: drop it.
+                    seen[key] -= 1
+                    out.append(Finding(note.path, block.start_line + i, "repeated-citation",
+                                       f"[^{key}] already backs this paragraph; keep one, "
+                                       "at its end", level="warning",
+                                       fix={"old": f"[^{key}]", "new": ""}))
+        by_source: dict[str, set] = {}
+        for key in set(block.refs):
+            a = definitions.get(key)
+            if a and a.source_id:
+                by_source.setdefault(a.source_id, set()).add(key)
+        for source_id, keys in by_source.items():
+            if len(keys) > SAME_SOURCE_MAX:
+                out.append(Finding(note.path, block.start_line, "many-citations",
+                                   f"{len(keys)} anchors of {source_id} in one paragraph; quote "
+                                   "one passage (1-3 sentences) that backs it all",
+                                   level="warning"))
+    return out
+
+
+def check_trivial(text: str, path: str, definitions: dict[str, anchors.Anchor]) -> list[Finding]:
+    """Short quotes prove that words exist, not that a paragraph is faithful. A short
+    quote is fine when the note shows it literally ("..."), as a definition."""
+    out = []
+    body = "\n".join(ln for ln in text.splitlines() if not anchors.DEF_RE.match(ln.strip()))
+    shown = [normalize(m) for m in re.findall(r'["“«]([^"”»\n]{2,200})["”»]', _prose(body))]
+    for anchor in definitions.values():
+        q = anchor.quote
+        if anchor.is_model or anchor.error or not q:
+            continue
+        if len(q.split()) >= MIN_QUOTE_WORDS or len(q) >= MIN_QUOTE_CHARS:
+            continue
+        if any(normalize(q) in m or m in normalize(q) for m in shown if len(m) > 3):
+            continue
+        out.append(Finding(path, anchor.line, "trivial-quote",
+                           f'quote "{q}" is too short to back a paragraph; quote the passage '
+                           "(1-3 sentences) the paragraph explains", level="warning"))
     return out
 
 
@@ -187,7 +268,7 @@ def check_coverage(note: notes.Note, mode: str) -> list[Finding]:
     by_section: dict[str, list[notes.Block]] = {}
     for block in note.blocks:
         section = block.section.strip().lower()
-        if section in exempt or block.is_table:
+        if section in exempt or block.is_table or block.callout_kind in FREE_CALLOUTS:
             continue
         words = len(block.text.split())
         claim_words += words
@@ -236,6 +317,8 @@ def check_note(path: Path) -> list[Finding]:
     mode = str(note.front.get("citations", default_mode(path)))
     findings.extend(check_coverage(note, mode))
     findings.extend(check_support(note, definitions))
+    findings.extend(check_density(note, definitions))
+    findings.extend(check_trivial(text, rel, definitions))
     return findings
 
 

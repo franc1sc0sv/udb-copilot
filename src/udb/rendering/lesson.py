@@ -104,7 +104,7 @@ def deep_link(anchor: anchors.Anchor) -> str:
 
 
 def build_sources(definitions: dict[str, anchors.Anchor]) -> list[dict]:
-    return [{"key": key, "source": "Añadido por Claude" if a.is_model else a.source_id,
+    return [{"key": key, "source": "Explicación de Claude" if a.is_model else a.source_id,
              "loc": locator(a), "quote": a.quote, "reason": a.fields.get("reason", ""),
              "model": a.is_model, "url": deep_link(a)} for key, a in definitions.items()]
 

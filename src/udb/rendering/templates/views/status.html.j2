@@ -10,7 +10,7 @@
   {% if s.classes %}
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">
     {% for r in s.classes %}
-    <span title="{{ stage_es[r.stage] }}{% if r.title %} · {{ r.title }}{% endif %}" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:28px;border-radius:var(--radius);font-size:12px;{% set t = stage_tone[r.stage] %}{% if t == 'neutral' %}background:var(--surface-1);color:var(--text-muted);{% else %}background:var(--bg-{{ t }});color:var(--text-{{ t }});{% endif %}">{{ '%02d' % r['class'] }}</span>
+    <span title="{{ stage_es[r.stage] }}{% if r.title %} · {{ r.title }}{% endif %}{% if r.material_covered is not none %} · material cubierto {{ r.material_covered }}%{% endif %}" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:28px;border-radius:var(--radius);font-size:12px;{% set t = stage_tone[r.stage] %}{% if t == 'neutral' %}background:var(--surface-1);color:var(--text-muted);{% else %}background:var(--bg-{{ t }});color:var(--text-{{ t }});{% endif %}">{{ '%02d' % r['class'] }}</span>
     {% endfor %}
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">

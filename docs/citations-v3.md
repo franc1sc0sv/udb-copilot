@@ -1,5 +1,21 @@
 # Citations v3 (design, not built yet)
 
+## Status (2026-10-21)
+
+Built and tested: the paragraph rule (`repeated-citation` with `--fix`,
+`many-citations`), passage quotes from `vault_quote` (whole sentences, `exact=True`
+for literal definitions), `trivial-quote` under 8 words, `weak-support` against the
+whole paragraph, the three voices (`[!example]` and `[!analogy]` need no citation and
+sit outside the 30 % budget), material coverage (`source-not-used`,
+`pages-not-covered`, "material cubierto" in `udb status`), and board stills as
+citable chunks (`t=` + `frame=`, descriptions after `Figura:` not quotable).
+First run on the real vault removed 432 repeated references with no text change.
+
+Not built yet: re-anchoring with fuzzy match (`quote-drifted`), `udb verify --deep`,
+the citation card and coverage strip in lesson pages, `/udb-tidy`, and the
+ingestion items of section 7 (Moodle-native sources, class assignment, HTML
+cleanup, versions).
+
 Goal: notes a student can read and trust. Every idea of the teacher is there,
 every claim can be checked in one tap, and the reader always knows who is
 talking: the teacher, the book, or Claude.
