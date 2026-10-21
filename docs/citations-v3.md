@@ -147,28 +147,81 @@ Changes:
 6. **OCR always on.** `ocr` joins the default install (local and cloud), and
    `udb cloud check` reports whether OCR works.
 
-## 8. Videos
+## 8. Microsoft 365 (UDB account)
 
-Two kinds, measured: 22 class recordings in the catalog (21 on the teachers'
-SharePoint/Stream, 1 on Teams), all `pending`; and at least 41 YouTube videos
-embedded in course pages.
+Class recordings live on the teachers' OneDrive/SharePoint (Stream), and the
+UDB mailbox is Outlook. Facts checked on 2026-10-20:
 
-| Video | How to get it | How to get the text | Status |
-|---|---|---|---|
-| YouTube embed | no download needed | captions with yt-dlp (`--write-auto-subs`), Spanish first | to build, cheap, works in the cloud |
-| Stream / SharePoint recording | Microsoft Graph with the student's UDB account (`/shares/{url}/driveItem/content`, `Files.Read.All`), no browser cookies | Stream's own transcript if Graph exposes it; otherwise Whisper on the RTX 5080 | **untested**: needs the UDB Microsoft account set up as an Outlook account first |
-| Fallback | yt-dlp with browser cookies, or download by hand + `udb recording attach` | Whisper locally | built in v2, never run on a real recording |
+- The UDB tenant (`f9afe020-…`) is **Managed** (cloud identities, no ADFS), so
+  the device-code login works from a phone.
+- Reading a shared link (`GET /shares/{u!base64url}/driveItem/content`) needs
+  delegated `Files.ReadWrite` at least (Graph docs). Plain `Files.ReadWrite` and
+  `Mail.Read` are user-consentable by default; `*.All` and `Sites.*` need an
+  admin. Whether UDB restricts user consent (e.g. verified publishers only) is
+  **unknown until the first login**. If it does, the student sees "Need admin
+  approval" and can request it; the fallback is downloading by hand.
+- Stream transcripts have no documented Graph endpoint. An internal
+  `_api/v2.1/…/media/transcripts` route is reported to work; udb may try it
+  as a bonus, never rely on it.
 
-Every transcript is a source with `t=HH:MM:SS-HH:MM:SS` anchors (already
-verified by v2), and `frames` adds one image per slide change with its OCR
-text, citable as a figure. `recording_radar` keeps scanning for exams, dates
-and grades said out loud.
+Design, mirroring Google:
 
-Plan: test one recording end to end before building more: discover → download
-through Graph → transcript → frames → a cited note → `udb verify`. If Graph
-cannot read teacher-owned videos, the fallback stays manual and the docs say so.
+- **One Entra app owned by the student** (multi-tenant, public client,
+  device code). Scopes: `User.Read`, `Mail.Read`, `Files.ReadWrite`,
+  `offline_access`. udb never writes files; `ReadWrite` is only what `/shares`
+  demands.
+- **udb owns the login** (MSAL cache under `secrets_dir`, packed into
+  `UDB_SECRETS`), so it works in the cloud too. Several Microsoft accounts are
+  fine, like Gmail.
+- **Optional Microsoft 365 MCP**: Softeria `ms-365-mcp-server` (open source,
+  `--org-mode --read-only`, presets for mail, calendar, files, Teams) launched
+  by `udb ms365-mcp`, which passes a fresh access token from udb's cache
+  (`MS365_MCP_OAUTH_TOKEN`) so there is one login, not two. Off unless
+  `mcp.ms365: true`.
 
-## 9. What is proven today and what is not
+## 9. Videos: the media pipeline (local GPU)
+
+Sources measured: 22 class recordings (21 Stream/SharePoint, 1 Teams), all
+pending; at least 41 YouTube videos embedded in course pages. Goal: every
+video becomes a citable document with what was **said** and what was
+**shown** (slides, formulas, diagrams, whiteboard).
+
+```
+acquire ─▶ audio ─▶ speech-to-text ──────────────┐
+   │                                              ├─▶ timeline ─▶ index + citations
+   └────▶ frames ─▶ dedup ─▶ read each slide ─────┘        └─▶ match against course PDFs
+```
+
+| Stage | How | Notes |
+|---|---|---|
+| Acquire | Stream/Teams: Graph `/shares` with the UDB login. YouTube: `yt-dlp` (video ≤720p + auto captions). Fallback: download by hand + `udb recording attach` | videos stay on local disk, **not** in git (size); only text and frames are committed |
+| Audio | ffmpeg to 16 kHz mono; voice activity detection drops silence | silence is where Whisper invents text |
+| Speech to text | Whisper large-v3 (faster-whisper, CTranslate2 ≥ 4.5 with CUDA 12.8, `float16`: `int8` crashes on RTX 50); transformers fallback (already in v2). Prompt seeded with the subject's own terms (VLAN, subred, determinante) | YouTube captions only as a quick preview or in the cloud |
+| Frames | ffmpeg scene change + perceptual dedup; keep the **last** frame before each change so build-up slides and whiteboards are complete | v2 has scene frames; dedup and "last frame" are new |
+| Read slides | tier 1: RapidOCR (text, fast, already used). tier 2: **PaddleOCR-VL** (0.9 B, Apache-2.0, top of OmniDocBench incl. formulas and tables) → Markdown + LaTeX. tier 3: **Qwen3-VL-8B** quantised, only on frames that look like diagrams, handwriting or code → structured description or mermaid | LaTeX is compiled with udb's offline MathJax; a formula that does not compile is flagged |
+| Timeline | one "page" per slide interval: slide text/LaTeX, diagram description, and the words said meanwhile | citable with `t=` (v2) and `frame=` |
+| Match | slide OCR compared with course PDFs/slides already in the vault (the Interspeech 2024 study found OCR the strongest signal for frame↔slide matching) | a note can cite the PDF page **and** what the teacher said about it |
+| Radar | exams, dates, grades said out loud (v2 `recording_radar`) | now over the full timeline |
+
+Voices still apply: OCR and transcript text is the teacher's (exact-quote
+checked); a diagram description written by a model is **not** the teacher's
+words, so it is cited as a figure (`frame=`) and shown as "descripción
+automática", never quoted as if the teacher said it.
+
+Quality gates per video, shown in `udb recording board`: speech confidence
+(mean log-prob), share of no-speech, repeated-phrase alarms, frames read,
+formulas that failed to compile. Anything below threshold is `needs-review`
+instead of silently indexed.
+
+Compute: runs only on the student's PC (RTX 5080, 16 GB), one model on the GPU
+at a time, queued with `udb media process --all`. Times are **to be measured**
+on the first real recording; no number is promised before that.
+
+First proof before building the rest: one Stream class (IRD) and one YouTube
+embed, end to end: acquire → transcript → frames → slide reading → a note
+with `t=` and `frame=` citations → `udb verify`.
+
+## 10. What is proven today and what is not
 
 | Claim | Status |
 |---|---|
@@ -177,8 +230,10 @@ cannot read teacher-owned videos, the fallback stays manual and the docs say so.
 | Paragraph says what the passage says | heuristic only (`weak-support`); `--deep` judge proposed |
 | Every page of the teacher's material is used | **not checked yet** (section 3) |
 | Forum posts and messages are citable | **not yet** (section 7) |
-| Embedded videos are read | **no** (section 8) |
+| Embedded videos are read | **no** (section 9) |
 | Class recordings can be downloaded and transcribed | **untested** |
+| UDB lets a student consent to an own app | **unknown until first login** |
+| PaddleOCR-VL and Qwen3-VL run well on the RTX 5080 | **untested** |
 
 ## Migration
 
