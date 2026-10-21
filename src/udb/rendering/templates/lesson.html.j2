@@ -13,6 +13,12 @@
     <div class="kicker">{{ asignatura }}{% if clase %} · Clase {{ "%02d"|format(clase) }}{% endif %}</div>
     <h1>{{ titulo }}</h1>
     <div class="meta">{{ fecha }}{% if fuentes %} · {{ fuentes|length }} fuentes citadas{% endif %}</div>
+    {% if cobertura %}
+    <div class="cobertura">
+      <span class="pct">Material de la clase{% if cobertura.percent is not none %}: {{ cobertura.percent }}% usado{% endif %}</span>
+      {% for s in cobertura.sources %}<span class="chip {{ 'falta' if s.missing else '' }}">{{ s.title }} · {{ s.state }}</span>{% endfor %}
+    </div>
+    {% endif %}
   </header>
   {{ contenido | safe }}
 </main>
@@ -21,7 +27,7 @@
   {% if fuentes %}
     {% for f in fuentes %}
     <div class="fuente {{ 'model' if f.model else '' }}" id="f-{{ f.key }}">
-      <div class="id">{{ f.source }}</div>
+      <div class="id">{{ f.source }}{% if f.title %} · {{ f.title }}{% endif %}</div>
       <div class="loc">{{ f.loc }}</div>
       <div class="q">{% if f.model %}{{ f.reason }}{% else %}“{{ f.quote }}”{% endif %}</div>
       {% if f.url %}<a class="ir" href="{{ f.url }}" target="_blank" rel="noopener">Ver en la clase original ↗</a>{% endif %}
@@ -47,8 +53,22 @@
       document.querySelectorAll(".fuente.on").forEach(function (n) { n.classList.remove("on"); });
       el.classList.add("on");
       var card = document.getElementById("f-" + key);
-      if (card) { card.classList.add("on"); card.scrollIntoView({ block: "center", behavior: "smooth" }); }
+      if (!card) return;
+      card.classList.add("on");
+      // A card right under the citation: on a phone the sources column is far below.
+      var open = document.querySelector(".popcard");
+      var same = open && open.dataset.key === key;
+      if (open) open.remove();
+      if (same) { el.classList.remove("on"); return; }
+      var pop = card.cloneNode(true);
+      pop.removeAttribute("id");
+      pop.className = "popcard " + card.className.replace("fuente", "").replace("on", "");
+      pop.dataset.key = key;
+      el.insertAdjacentElement("afterend", pop);
     });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { var p = document.querySelector(".popcard"); if (p) p.remove(); }
   });
 })();
 </script>

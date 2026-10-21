@@ -54,6 +54,16 @@ blockquote { margin: 0 0 16px; padding: 12px 16px; border-left: 3px solid var(--
 .callout .label { font: 700 11px/1.4 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 6px; }
 .callout p:last-child { margin-bottom: 0; }
+.cobertura { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  font-size: 13px; }
+.cobertura .pct { font-weight: 600; margin-right: 4px; }
+.cobertura .chip { border: 1px solid var(--line, #d9d6cc); border-radius: 999px; padding: 2px 10px;
+  background: var(--card, #fff); }
+.cobertura .chip.falta { border-color: #c0392b; color: #c0392b; }
+.popcard { display: block; margin: 8px 0 12px; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--line, #d9d6cc); background: var(--card, #fff); font-size: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.popcard .q { margin-top: 6px; }
 .callout.model, .callout.example, .callout.ejemplo, .callout.analogy, .callout.analogia {
   background: var(--model-bg); border-color: var(--model-line); }
 .callout.alerta { background: var(--warn-bg); border-color: var(--warn-line); }

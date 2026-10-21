@@ -41,6 +41,43 @@ def locate(code: str, source_id: str, quote: str) -> list[int]:
             if contains(a["text"] + " " + b["text"], quote)]
 
 
+DRIFT_MIN = 0.88  # how alike a passage must be to be proposed as the moved quote
+
+
+def closest_passage(code: str, source_id: str, quote: str,
+                    near: int | None = None) -> tuple[int, str, float] | None:
+    """The passage of the source most like `quote` (same length in words), when the
+    quote stopped matching literally: OCR fixed a letter, a slide was edited, the
+    extractor changed. Pages near the cited one are tried first. The returned text
+    is copied verbatim from the source, so the repaired anchor verifies."""
+    from difflib import SequenceMatcher
+
+    target = normalize(quote)
+    size = len(quote.split())
+    if size < 3:
+        return None
+    pages = index.load_pages(code, source_id)
+    if near is not None:
+        pages = sorted(pages, key=lambda p: abs((p.get("page") or 0) - near))
+    best = None
+    for p in pages:
+        words = (p.get("text") or "").split()
+        for width in (size - 1, size, size + 1):
+            if width < 3:
+                continue
+            for i in range(0, max(1, len(words) - width + 1)):
+                window = " ".join(words[i:i + width])
+                m = SequenceMatcher(None, target, normalize(window), autojunk=False)
+                if m.real_quick_ratio() < DRIFT_MIN or m.quick_ratio() < DRIFT_MIN:
+                    continue
+                ratio = m.ratio()
+                if ratio >= DRIFT_MIN and (best is None or ratio > best[2]):
+                    best = (p.get("page"), window.replace('"', "'"), ratio)
+        if best and best[2] > 0.97:
+            break
+    return best
+
+
 def quote_in_pages(code: str, source_id: str, quote: str, page: int | None) -> bool:
     found = locate(code, source_id, quote)
     return bool(found) if page is None else page in found
@@ -133,9 +170,18 @@ def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
     page = int(raw_page) if raw_page.isdigit() else None
     found = locate(owner, source_id, quote)
     if not found:
-        where = f"p.{page}" if page else "the document"
-        out.append(Finding(path, anchor.line, "quote-not-found",
-                           f'{source_id} {where} does not contain: "{quote}"'))
+        drift = closest_passage(owner, source_id, quote, page)
+        if drift:
+            new_page, text, ratio = drift
+            fix_old = f'quote="{quote}"'
+            out.append(Finding(path, anchor.line, "quote-drifted",
+                               f"{source_id}: the quote changed in the source ({ratio:.0%} alike, "
+                               f'p.{new_page}); now: "{text}"', level="warning",
+                               fix={"old": fix_old, "new": f'quote="{text}"'}))
+        else:
+            where = f"p.{page}" if page else "the document"
+            out.append(Finding(path, anchor.line, "quote-not-found",
+                               f'{source_id} {where} does not contain: "{quote}"'))
     elif page is not None and page not in found:
         # The text is there but on another page: the source was re-extracted (HTML now
         # splits by section, scanned pages got OCR). `udb verify --fix` updates it.

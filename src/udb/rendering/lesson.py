@@ -79,8 +79,10 @@ def locator(anchor: anchors.Anchor) -> str:
     f = anchor.fields
     if anchor.is_model:
         return f"basado en {f.get('basis', '?')}"
-    bits = [f"página {f['page']}" if "page" in f else "", f"minuto {f['t']}" if "t" in f else "",
-            f.get("url", ""), f"consultado {f['retrieved']}" if "retrieved" in f else ""]
+    bits = [f"página {f['page']}" if "page" in f else "",
+            f"pizarra {f['frame']}" if "frame" in f else "",
+            f"minuto {f['t'].split('-')[0]}" if "t" in f else "",
+            f"consultado {f['retrieved']}" if "retrieved" in f else ""]
     return " · ".join(b for b in bits if b) or "sin localizador"
 
 
@@ -104,9 +106,35 @@ def deep_link(anchor: anchors.Anchor) -> str:
 
 
 def build_sources(definitions: dict[str, anchors.Anchor]) -> list[dict]:
+    def title(a: anchors.Anchor) -> str:
+        if a.is_model or not a.source_id:
+            return ""
+        return (registry.lookup(a.source_id) or {}).get("title") or ""
     return [{"key": key, "source": "Explicación de Claude" if a.is_model else a.source_id,
-             "loc": locator(a), "quote": a.quote, "reason": a.fields.get("reason", ""),
-             "model": a.is_model, "url": deep_link(a)} for key, a in definitions.items()]
+             "title": title(a), "loc": locator(a), "quote": a.quote,
+             "reason": a.fields.get("reason", ""), "model": a.is_model, "url": deep_link(a)}
+            for key, a in definitions.items()]
+
+
+def coverage_strip(front: dict, path: Path) -> dict | None:
+    """How much of the class material the note uses, for the strip under the title."""
+    from ..checks.coverage import material_coverage
+    code, number = front.get("subject"), front.get("class")
+    if not code or not isinstance(number, int):
+        return None
+    data = material_coverage(str(code).upper(), number, path)
+    if not data["sources"]:
+        return None
+    items = []
+    for s in data["sources"]:
+        if not s["cited"]:
+            state = "sin citar"
+        elif s["pages"]:
+            state = f"{len(s['covered'])}/{len(s['pages'])} páginas"
+        else:
+            state = "citada"
+        items.append({"title": s["title"] or s["id"], "state": state, "missing": not s["cited"]})
+    return {"percent": data["percent"], "sources": items}
 
 
 def note_body(raw: str, keys: set[str]) -> str:
@@ -129,7 +157,7 @@ def render_note(path: Path, offline_math: bool = True) -> str:
         titulo=front.get("title") or notes.first_heading(raw) or path.stem,
         asignatura=front.get("subject", ""), clase=front.get("class"),
         fecha=front.get("date", ""), contenido=note_body(raw, set(definitions)),
-        fuentes=build_sources(definitions))
+        fuentes=build_sources(definitions), cobertura=coverage_strip(front, path))
     return math_svg.render_html(page) if offline_math and MATH_RE.search(raw) else page
 
 

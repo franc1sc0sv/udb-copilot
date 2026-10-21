@@ -86,8 +86,10 @@ def register(app: typer.Typer) -> None:
     @app.command()
     def verify(subject: str = typer.Argument(None),
                path: Path = typer.Option(None, "--path", help="Check one file"),
-               fix: bool = typer.Option(False, "--fix", help="Repair citations whose quote moved")):
-        """Check citations, plain language, methods and coverage. No model."""
+               fix: bool = typer.Option(False, "--fix", help="Repair citations whose quote moved"),
+               deep: bool = typer.Option(False, "--deep", help="Also ask a small model whether "
+                                         "each paragraph says what its passages say")):
+        """Check citations, plain language, methods and coverage. No model unless --deep."""
         from .. import checks
         if fix:
             target = [path] if path else None
@@ -101,6 +103,13 @@ def register(app: typer.Typer) -> None:
         else:
             found = guarded(checks.check_subject, subject.upper() if subject else None)
             scope = f"vault/{subject.upper()}" if subject else "all"
+        if deep:
+            from ..checks import citations
+            from ..checks import deep as deep_check
+            targets = [path] if path else citations.note_paths(subject.upper() if subject else None)
+            for note in targets:
+                if note.suffix == ".md":
+                    found += guarded(deep_check.check_path, note)
         checks.write_report(found, scope)
         raise typer.Exit(report(found, "Vault"))
 

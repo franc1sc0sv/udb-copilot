@@ -18,6 +18,9 @@ from ..core import settings
 
 PORT = 9333
 WINDOWS_CHROME = Path("/mnt/c/Program Files/Google/Chrome/Application/chrome.exe")
+# WSL does not always put Windows tools on PATH.
+POWERSHELL = shutil.which("powershell.exe") or \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 LOGIN_HOSTS = ("login.microsoftonline.com", "login.live.com")
 
 
@@ -42,7 +45,7 @@ def chrome_binary() -> str:
 def profile_dir(binary: str) -> str:
     """Windows Chrome needs a Windows path; Linux Chrome a Linux one."""
     if binary.endswith(".exe"):
-        out = subprocess.run(["powershell.exe", "-NoProfile", "-Command", "$env:LOCALAPPDATA"],
+        out = subprocess.run([POWERSHELL, "-NoProfile", "-Command", "$env:LOCALAPPDATA"],
                              capture_output=True, text=True).stdout.strip()
         return out + r"\udb\chrome-profile"
     path = settings.get().secrets / "chrome-profile"
