@@ -178,21 +178,53 @@ def frame_chunks(code: str, source_id: str) -> list[dict]:
     return out
 
 
-def chunks_for(code: str, source_id: str) -> list[dict]:
+BOILERPLATE_SHARE = 0.6  # a line on this share of a subject's HTML pages is the site template
+BOILERPLATE_MIN = 4
+
+
+def boilerplate(code: str) -> set[str]:
+    """Lines repeated on most HTML pages of a subject (navigation help, menus, footers):
+    the course site's template, not content. They stay in the extracted text, so quotes
+    still verify, but are left out of the search index."""
+    from collections import Counter
+
+    from ..core.text import normalize
+    pages_by_source = [load_pages(code, r["id"]) for r in registry.read_all(code)
+                       if str(r.get("path", "")).lower().endswith((".html", ".htm"))]
+    if len(pages_by_source) < BOILERPLATE_MIN:
+        return set()
+    seen: Counter = Counter()
+    for pages in pages_by_source:
+        seen.update({normalize(line) for p in pages for line in (p.get("text") or "").split("\n")
+                     if line.strip()})
+    floor = max(BOILERPLATE_MIN, BOILERPLATE_SHARE * len(pages_by_source))
+    return {line for line, n in seen.items() if n >= floor}
+
+
+def _strip_boilerplate(pages: list[dict], noise: set[str]) -> list[dict]:
+    if not noise:
+        return pages
+    from ..core.text import normalize
+    return [{**p, "text": "\n".join(line for line in (p.get("text") or "").split("\n")
+                                    if normalize(line) not in noise)} for p in pages]
+
+
+def chunks_for(code: str, source_id: str, noise: set[str] | None = None) -> list[dict]:
     segments = load_segments(code, source_id)
     if segments:
         return chunk_segments(segments) + frame_chunks(code, source_id)
-    return chunk_pages(load_pages(code, source_id))
+    return chunk_pages(_strip_boilerplate(load_pages(code, source_id), noise or set()))
 
 
 def reindex_subject(code: str) -> int:
     con = connect()
     total = 0
     try:
+        noise = boilerplate(code)
         for rec in registry.read_all(code):
             upsert_source(con, rec)
             clear_source(con, rec["id"])
-            total += add_chunks(con, rec["id"], code.upper(), chunks_for(code, rec["id"]))
+            total += add_chunks(con, rec["id"], code.upper(), chunks_for(code, rec["id"], noise))
         con.commit()
     finally:
         con.close()

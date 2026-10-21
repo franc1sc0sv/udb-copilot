@@ -5,6 +5,7 @@ Claude asks this instead of guessing. A source is one of:
 - ok            all its pages have text
 - needs-ocr     scanned pages with no text layer yet
 - images        an HTML page whose figures were not downloaded or read yet
+- embeds        a page with embedded videos or widgets whose content is not read yet
 - no-text       nothing could be extracted (a video link, an empty page)
 - unsupported   a format the engine does not read (.rar, .zip...)
 - transcript    a recording with its transcript
@@ -20,6 +21,7 @@ ADVICE = {
     "no-text": "nothing to read; look at the source title or URL",
     "missing": "the file is gone; download it again (udb sync {code})",
     "stale": "udb sources fix {sid}",
+    "embeds": "{embed_advice}",
 }
 
 
@@ -34,11 +36,13 @@ def health(code: str, rec: dict) -> dict:
     empty = [p["page"] for p in text_pages if len(p["text"].strip()) < ingest.EMPTY_PAGE]
     images = meta.get("images", [])
     read_images = sum(1 for i in images if i.get("status") == "done")
+    unread, videos = _unread_embeds(meta.get("embeds", []))
     row = {"id": sid, "subject": code, "title": rec.get("title"), "type": suffix.lstrip("."),
            "class": rec.get("class"), "pages": len(text_pages), "chars": chars,
            "empty_pages": len(empty), "ocr_pages": sum(1 for p in pages if p.get("ocr")),
            "images": len(images), "images_read": read_images,
-           "embeds": len(meta.get("embeds", [])), "superseded": bool(rec.get("superseded_by"))}
+           "embeds": len(meta.get("embeds", [])), "embeds_unread": len(unread),
+           "superseded": bool(rec.get("superseded_by"))}
     if not path.exists():
         state = "missing"
     elif index.load_segments(code, sid):
@@ -53,11 +57,31 @@ def health(code: str, rec: dict) -> dict:
         state = "no-text"
     elif images and read_images < len(images):
         state = "images"
+    elif unread:
+        state = "embeds"
     else:
         state = "ok"
     row["state"] = state
-    row["fix"] = ADVICE.get(state, "").format(sid=sid, code=code) or None
+    advice = (f"udb recording process {' '.join(videos[:3])}" if videos
+              else "embedded widget: open the course page to see it")
+    row["fix"] = ADVICE.get(state, "").format(sid=sid, code=code, embed_advice=advice) or None
     return row
+
+
+def _unread_embeds(embeds: list[dict]) -> tuple[list[dict], list[str]]:
+    """Embedded content whose text is not in the vault: YouTube videos not processed yet
+    (by catalog id) and any other widget (H5P, Genially...)."""
+    from ..media import catalog
+    by_key = {catalog.url_key(g["url"]): g for g in catalog.load()}
+    unread, videos = [], []
+    for e in embeds:
+        g = by_key.get(catalog.url_key(e.get("src") or ""))
+        if g and g.get("source_id"):
+            continue
+        unread.append(e)
+        if g:
+            videos.append(g["id"])
+    return unread, videos
 
 
 def report(code: str | None = None, source_id: str | None = None) -> list[dict]:
@@ -95,4 +119,5 @@ def summary(rows: list[dict]) -> dict:
     return {"sources": len(rows), "by_state": counts, "ocr_available": ocr.available(),
             "images": sum(r["images"] for r in rows),
             "images_read": sum(r["images_read"] for r in rows),
-            "embeds": sum(r["embeds"] for r in rows)}
+            "embeds": sum(r["embeds"] for r in rows),
+            "embeds_unread": sum(r["embeds_unread"] for r in rows)}

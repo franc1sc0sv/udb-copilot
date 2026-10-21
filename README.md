@@ -66,7 +66,7 @@ You need Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), git, and
 formulas.
 
 ```bash
-uv tool install "udb-copilot[ocr,outlook,agent] @ git+https://github.com/franc1sc0sv/udb-copilot"
+uv tool install "udb-copilot[outlook,agent] @ git+https://github.com/franc1sc0sv/udb-copilot"
 udb init ~/udb-vault          # creates the data home and wires Claude Code into it
 cd ~/udb-vault
 udb setup                     # Moodle login, pick your courses, add mail accounts

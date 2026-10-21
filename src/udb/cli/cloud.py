@@ -45,6 +45,8 @@ def check():
     table.add_row("files restored now", str(len(restored)))
     table.add_row("Google OAuth app", MARK[bool(secrets.google_client())])
     table.add_row("uv / uvx", MARK[bool(shutil.which("uvx"))])
+    from ..vault import ocr
+    table.add_row("OCR (scanned PDFs, figures)", MARK[ocr.available()])
     for host in HOSTS:
         try:
             httpx.head(f"https://{host}", timeout=8, follow_redirects=False)

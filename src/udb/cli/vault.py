@@ -138,8 +138,9 @@ def register(app: typer.Typer) -> None:
         console.print(table)
         summ = sources.summary(rows)
         console.print(f"{summ['sources']} sources: {summ['by_state']} · figures read "
-                      f"{summ['images_read']}/{summ['images']} · OCR "
-                      f"{'available' if summ['ocr_available'] else 'missing (ocr extra)'}")
+                      f"{summ['images_read']}/{summ['images']} · embedded content unread "
+                      f"{summ['embeds_unread']}/{summ['embeds']} · OCR "
+                      f"{'available' if summ['ocr_available'] else 'missing'}")
 
     @sources_app.command("fix")
     def sources_fix(target: str = typer.Argument(None, help="SUBJECT, a SRC id, or empty for all"),

@@ -53,7 +53,16 @@ def register(app: typer.Typer) -> None:
         result = guarded(ms.sync_subject, subject.upper(), dry_run=dry_run)
         for line in result["added"]:
             console.print(f"[green]+[/green] {line}")
-        console.print(f"\n{len(result['added'])} new, {result['already_there']} already there.")
+        console.print(f"\nFiles: {len(result['added'])} new, {result['already_there']} already there.")
+        if dry_run:
+            return
+        words = guarded(ms.sync_classroom, subject.upper())
+        for line in words["new"]:
+            console.print(f"[green]+[/green] {line}")
+        for line in words["updated"]:
+            console.print(f"[yellow]~[/yellow] {line}  (new version; the old one is superseded)")
+        console.print(f"Teacher's words in Moodle: {len(words['new'])} new, "
+                      f"{len(words['updated'])} updated, {words['same']} unchanged.")
 
     @app.command()
     def assignments(subject: str = typer.Argument(None),

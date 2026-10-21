@@ -186,7 +186,8 @@ def reindex_source(code: str, source_id: str) -> int:
     try:
         index.upsert_source(con, registry.get(code, source_id) or {})
         index.clear_source(con, source_id)
-        count = index.add_chunks(con, source_id, code.upper(), index.chunks_for(code, source_id))
+        count = index.add_chunks(con, source_id, code.upper(),
+                                 index.chunks_for(code, source_id, index.boilerplate(code)))
         con.commit()
     finally:
         con.close()

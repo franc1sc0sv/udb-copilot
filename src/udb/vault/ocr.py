@@ -17,7 +17,7 @@ def _engine():
     try:
         from rapidocr_onnxruntime import RapidOCR
     except ImportError as exc:
-        raise OcrUnavailable("OCR needs the ocr extra: uv tool install 'udb-copilot[ocr]'") from exc
+        raise OcrUnavailable("OCR engine missing: reinstall udb-copilot") from exc
     return RapidOCR()
 
 

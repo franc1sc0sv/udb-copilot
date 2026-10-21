@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..core.paths import registry_path, sources_dir, subject_dir
 
-KINDS = ("course", "class", "external", "exercise")
+KINDS = ("course", "class", "external", "exercise", "moodle")
 ID_RE = re.compile(r"^SRC-([A-Z0-9]+)-(\d{4})$")
 
 
@@ -147,3 +147,34 @@ def assign_classes(code: str) -> list[tuple[str, int]]:
     if changed:
         rewrite(code, records)
     return changed
+
+
+def add_alias(code: str, source_id: str, moodle_id: str) -> None:
+    """Another Moodle link to a file already registered (same content)."""
+    records = read_all(code)
+    for r in records:
+        if r["id"] == source_id and moodle_id != r.get("moodle_id"):
+            aliases = r.setdefault("moodle_aliases", [])
+            if moodle_id not in aliases:
+                aliases.append(moodle_id)
+    rewrite(code, records)
+
+
+def register_version(code: str, path: Path, kind: str, moodle_id: str, **fields) -> tuple[dict, str]:
+    """Register what Moodle shows under `moodle_id`, keeping versions: unchanged content is
+    skipped, edited content becomes a new source and the old one is `superseded_by` it,
+    so notes citing the old text get told. Returns (record, "new" | "updated" | "same")."""
+    current = [r for r in read_all(code)
+               if r.get("moodle_id") == moodle_id and not r.get("superseded_by")]
+    digest = sha256(Path(path))
+    if current and current[-1].get("sha256") == digest:
+        return current[-1], "same"
+    rec = register(code, path, kind, moodle_id=moodle_id, **fields)
+    if not current:
+        return rec, "new"
+    records = read_all(code)
+    for r in records:
+        if r["id"] in {c["id"] for c in current}:
+            r["superseded_by"] = rec["id"]
+    rewrite(code, records)
+    return rec, "updated"
