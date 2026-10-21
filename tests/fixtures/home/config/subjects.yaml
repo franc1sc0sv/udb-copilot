@@ -1,7 +1,0 @@
-subjects:
-- code: DEMO
-  name: Circuitos de ejemplo
-  tipo: ingenieria
-  term: 2026-1
-  moodle_course_id: 101
-  dias: [lunes, jueves]

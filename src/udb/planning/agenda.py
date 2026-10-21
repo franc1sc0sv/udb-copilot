@@ -182,10 +182,10 @@ def build(subject: str | None = None, online: bool = True, now: datetime | None 
     sources: list[dict] = []
     alerts: list[dict] = []
 
-    from ..integrations.moodle import sync
+    from ..moodle import reader
     from . import tasks
 
-    rows = _collect(sources, "Moodle (tareas y eventos)", lambda: sync.assignments(code_filter),
+    rows = _collect(sources, "Moodle (tareas y eventos)", lambda: reader.deadlines(code_filter),
                     detail=lambda v: f"{len(v)} actividades") or []
     local = {t["moodle_url"]: t for t in (_collect(
         sources, "TASK.md locales", lambda: tasks.local_tasks(code_filter),
@@ -193,8 +193,8 @@ def build(subject: str | None = None, online: bool = True, now: datetime | None 
 
     events, mails = [], []
     if online:
-        from ..integrations.google import calendar
-        from ..integrations.mail import base as mail
+        from ..google import calendar
+        from ..mail import base as mail
         events = _collect(sources, "Google Calendar", optional=True,
                           fn=lambda: calendar.events(time.time() - 14 * 86400,
                                                      time.time() + 75 * 86400),
@@ -207,7 +207,7 @@ def build(subject: str | None = None, online: bool = True, now: datetime | None 
                      "detail": st["detail"]} for st in (found[1] if found else []) if not st["ok"]]
 
     def radar_hits() -> dict:
-        from ..integrations.recordings import catalog, radar
+        from ..media import catalog, radar
         out: dict[str, list] = {}
         for g in catalog.board():
             if g["subject"] in codes and g["transcribed"]:
@@ -219,7 +219,7 @@ def build(subject: str | None = None, online: bool = True, now: datetime | None 
     radar = _collect(sources, "Grabaciones (radar)", radar_hits,
                      detail=lambda v: f"{sum(len(x) for x in v.values())} menciones") or {}
     feed = _collect(sources, "Moodle: anuncios y foros",
-                    lambda: sync.activity(codes, time.time() - 21 * 86400),
+                    lambda: reader.news(codes, time.time() - 21 * 86400),
                     detail=lambda v: f"{sum(len(x['announcements']) for x in v.values())} anuncios"
                     ) or {} if online else {}
 

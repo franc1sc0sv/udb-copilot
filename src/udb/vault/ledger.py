@@ -34,11 +34,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 """
 
-# Old Spanish column names, renamed in place the first time a ledger opens.
-RENAMES = [("concepts", "clase", "class_number"), ("method_errors", "metodo", "method")]
 BLOOM = ("remember", "understand", "apply", "analyze")
-BLOOM_LEGACY = {"recordar": "remember", "comprender": "understand", "aplicar": "apply",
-                "analizar": "analyze"}
 MIN_EASE = 1.3
 
 
@@ -49,15 +45,6 @@ def db_path() -> Path:
 def connect() -> sqlite3.Connection:
     con = sqlite3.connect(db_path())
     con.row_factory = sqlite3.Row
-    for table, old, new in RENAMES:
-        cols = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
-        if old in cols and new not in cols:
-            con.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
-    for old, new in BLOOM_LEGACY.items():
-        try:
-            con.execute("UPDATE cards SET bloom=? WHERE bloom=?", (new, old))
-        except sqlite3.OperationalError:
-            break
     con.executescript(SCHEMA)
     return con
 
@@ -90,7 +77,6 @@ def add_concept(subject: str, name: str, note_path: str, class_number: int | Non
 
 
 def add_card(concept_id: str, bloom: str, question: str, answer: str, anchor: str) -> int:
-    bloom = BLOOM_LEGACY.get(bloom, bloom)
     if bloom not in BLOOM:
         raise ValueError(f"invalid bloom level: {bloom} (use one of {', '.join(BLOOM)})")
     con = connect()

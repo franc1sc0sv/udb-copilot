@@ -15,7 +15,7 @@ def register(app: typer.Typer) -> None:
     @app.command()
     def init(folder: Path = typer.Argument(Path("."), help="Data folder to create or adopt")):
         """Create a data home: udb.yaml, config examples, vault/, cycles/, Claude Code setup."""
-        from .. import setup
+        from ..claude import setup
         home = setup.init(folder)
         console.print(f"[green]Data home ready at {home}[/green]")
         console.print(f"Next: cd {home} && udb setup")
@@ -31,7 +31,7 @@ def register(app: typer.Typer) -> None:
     @setup_app.command("claude")
     def setup_claude(folder: Path = typer.Argument(None)):
         """Write skills, agents, hooks, .mcp.json and the CLAUDE.md block into the data home."""
-        from .. import setup
+        from ..claude import setup
         from ..core import settings
         home = folder.resolve() if folder else guarded(settings.get).home
         console.print("Updated: " + ", ".join(setup.setup_claude(home)))
@@ -51,8 +51,8 @@ def register(app: typer.Typer) -> None:
     @app.command(hidden=True)
     def hook(event: str = typer.Argument(..., help="pre | post | session")):
         """Claude Code hook entry point (reads the hook JSON on stdin)."""
-        from ..agent import guards
-        raise typer.Exit(guards.run(event))
+        from ..claude import hooks
+        raise typer.Exit(hooks.run(event))
 
     @app.command()
     def subjects():
@@ -175,15 +175,6 @@ def register(app: typer.Typer) -> None:
             if saved or info.get("pending"):
                 console.print(f"{sid}  {info['title']}: {saved} saved, "
                               f"{len(info.get('pending', []))} pending")
-
-    @app.command()
-    def migrate(dry_run: bool = typer.Option(False, "--dry-run")):
-        """Rewrite pre-0.1 Spanish keys (front matter, registry, catalogs) to English."""
-        from .. import migrate as mig
-        changed = guarded(mig.run, dry_run=dry_run)
-        for line in changed:
-            console.print(line)
-        console.print(f"{len(changed)} files {'would change' if dry_run else 'changed'}.")
 
     @app.command()
     def diagrams():

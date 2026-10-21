@@ -90,11 +90,11 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
     sources: list[dict] = []
     codes = [s["code"] for s in load_subjects()]
 
-    from ..integrations.mail import base as mail
-    from ..integrations.moodle import sync
+    from ..mail import base as mail
+    from ..moodle import reader
 
-    rows = _source(sources, "moodle", lambda: sync.assignments(None), [])
-    activity = _source(sources, "moodle-forums", lambda: sync.activity(codes, since), {})
+    rows = _source(sources, "moodle", lambda: reader.deadlines(None), [])
+    activity = _source(sources, "moodle-forums", lambda: reader.news(codes, since), {})
     announcements = [{"subject": c, **a} for c, v in activity.items()
                      for a in v["announcements"] if a["timestamp"] >= since]
     posts = [{"subject": c, **p} for c, v in activity.items() for p in v["forum_posts"]]
@@ -133,7 +133,7 @@ SAID_DAYS = 14
 def said_in_class(today: date, days: int = SAID_DAYS, limit: int = 8) -> list[dict]:
     """Radar hits from classes of the last `days` days: dates still ahead, or no date but
     a change, an announcement or "this will be on the exam". Spoken, so "por confirmar"."""
-    from ..integrations.recordings import catalog, radar, stream
+    from ..media import catalog, radar, stream
     out = []
     for g in catalog.load():
         day = stream.class_day(g)
@@ -156,7 +156,7 @@ def said_in_class(today: date, days: int = SAID_DAYS, limit: int = 8) -> list[di
 
 
 def _events_today(today: date) -> list[dict]:
-    from ..integrations.google import calendar
+    from ..google import calendar
 
     start = datetime.combine(today, datetime.min.time(), settings.get().tz).timestamp()
     return calendar.events(start, start + 86400)
@@ -219,7 +219,7 @@ def as_html(d: dict) -> str:
 
 
 def send(d: dict, account_id: str, to: str) -> str:
-    from ..integrations.mail import base as mail
+    from ..mail import base as mail
 
     provider = mail.provider_for(mail.get_account(account_id))
     if not hasattr(provider, "send"):

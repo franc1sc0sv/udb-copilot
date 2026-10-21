@@ -1,7 +1,7 @@
 """The `moodle` MCP server: the whole virtual classroom, read only.
 
 Run with `udb moodle mcp` (stdio). Every tool goes through
-`integrations.moodle.reader`, which refuses any web-service call that writes.
+`moodle.reader`, which refuses any web-service call that writes.
 Nothing is submitted, posted or marked as read.
 """
 import json
@@ -10,7 +10,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from ..core import paths
-from ..integrations.moodle import reader
+from ..moodle import reader
 
 INSTRUCTIONS = """The student's Moodle (virtual classroom), read only.
 Start with `updates` or `notifications` to see what is new, `course` to browse a subject,

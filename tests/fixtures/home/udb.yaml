@@ -1,7 +1,0 @@
-schema: 1
-timezone: America/El_Salvador
-language: es
-institution:
-  name: Demo University
-  moodle_url: https://moodle.example.edu
-  guard_domains: [moodle.example.edu]

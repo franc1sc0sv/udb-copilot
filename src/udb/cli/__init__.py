@@ -1,7 +1,7 @@
 """The `udb` command."""
 import typer
 
-from . import classes, classroom, cloud, mail, recordings, vault
+from . import classes, classroom, cloud, drive, mail, media, vault
 
 app = typer.Typer(add_completion=False, no_args_is_help=True,
                   help="Study vault with mandatory citations, wired to your virtual classroom.")
@@ -10,9 +10,9 @@ vault.register(app)
 classes.register(app)
 classroom.register(app)
 app.add_typer(mail.mail_app, name="mail")
-app.add_typer(mail.drive_app, name="drive")
-app.add_typer(recordings.app, name="recording")
-app.add_typer(recordings.browser_app, name="browser")
+app.add_typer(drive.drive_app, name="drive")
+app.add_typer(media.app, name="recording")
+app.add_typer(media.browser_app, name="browser")
 app.add_typer(cloud.app, name="cloud")
 
 

@@ -45,7 +45,7 @@ vision = [
 ]
 # udb's own Chrome for Stream recordings (drives an installed Google Chrome).
 browser = ["playwright>=1.48"]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["ruff>=0.6"]
 
 [project.scripts]
 udb = "udb.cli:main"
@@ -76,5 +76,3 @@ target-version = "py311"
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501", "B008"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]

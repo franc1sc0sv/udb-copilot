@@ -76,7 +76,7 @@ def register(app: typer.Typer) -> None:
     @class_app.command("write")
     def class_write(number: int, subject: str, budget: float = typer.Option(2.0)):
         """Write the explanation of a class with Claude (needs the agent extra)."""
-        from ..agent import runner
+        from ..claude import runner
         from ..vault import classes
         code = subject.upper()
         folder = classes.get_class(code, number)
@@ -120,7 +120,7 @@ def register(app: typer.Typer) -> None:
     @method_app.command("extract")
     def method_extract(topic: str, subject: str, budget: float = typer.Option(1.5)):
         """Extract the teacher's method for a topic with Claude."""
-        from ..agent import runner
+        from ..claude import runner
         from ..vault import methods
         code, slug = subject.upper(), slugify(topic)
         prompt = (f"Extract the teacher's method for '{topic}' in {code}. Use the 'methodist' "
@@ -157,7 +157,7 @@ def register(app: typer.Typer) -> None:
     @app.command()
     def exercise(path: Path, budget: float = typer.Option(1.5)):
         """Solve an assignment following the teacher's method, with Claude."""
-        from ..agent import runner
+        from ..claude import runner
         from ..core.paths import subject_of_path
         if not path.exists():
             die(f"{path} does not exist")
@@ -170,7 +170,7 @@ def register(app: typer.Typer) -> None:
     @app.command()
     def study(subject: str = typer.Argument(None), budget: float = typer.Option(2.0)):
         """Interactive study session (the tutor asks, you answer)."""
-        from ..agent import runner
+        from ..claude import runner
         opening = (f"Start a study session{' for ' + subject.upper() if subject else ''}. Use the "
                    "'tutor' subagent. Call ledger_due and ledger_weak. Ask ONE question and wait "
                    "for my answer. Then correct me with the quote and record the result.")
@@ -179,7 +179,7 @@ def register(app: typer.Typer) -> None:
     @app.command()
     def explain(topic: str, subject: str = typer.Argument(None), budget: float = typer.Option(1.0)):
         """Feynman method: you explain, the tutor corrects with citations."""
-        from ..agent import runner
+        from ..claude import runner
         opening = (f"I will explain '{topic}'. Use the 'tutor' subagent. First ask me to explain "
                    "it in my words. Then compare with the cited material: what I got right, what "
                    "I missed, what I said backwards, each with its exact quote.")
@@ -189,7 +189,7 @@ def register(app: typer.Typer) -> None:
     def ask(question: str, subject: str = typer.Argument(None), budget: float = typer.Option(1.0),
             follow: bool = typer.Option(False, "--follow", help="Continue the last conversation")):
         """Ask the vault. Answers only with what is cited."""
-        from ..agent import runner
+        from ..claude import runner
         from ..vault import ledger
         resume = ledger.last_session(subject) if follow and subject else None
         prompt = (f"{question}\n\nAnswer ONLY with what is in the indexed material, citing every "

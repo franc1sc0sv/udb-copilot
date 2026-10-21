@@ -23,7 +23,7 @@ def _verify(path) -> dict:
 
 
 def _recordings(code: str) -> dict[int, str]:
-    from ..integrations.recordings import catalog
+    from ..media import catalog
 
     by_source = {}
     for r in catalog.board():

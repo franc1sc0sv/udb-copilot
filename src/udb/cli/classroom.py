@@ -22,7 +22,7 @@ def register(app: typer.Typer) -> None:
     @moodle_app.command("login")
     def moodle_login(user: str = typer.Option(None, help="Moodle username")):
         """Exchange your username and password for a token. Only the token is stored."""
-        from ..integrations.moodle import client
+        from ..moodle import client
         user = user or input("Moodle user: ").strip()
         password = getpass.getpass("Moodle password (not stored): ")
         token = guarded(client.fetch_token, user, password)
@@ -39,16 +39,17 @@ def register(app: typer.Typer) -> None:
     @moodle_app.command("courses")
     def moodle_courses():
         """Your Moodle courses with their ids (for config/subjects.yaml)."""
-        from ..integrations.moodle import sync
-        table = Table("id", "short name", "name")
-        for c in guarded(sync.list_courses):
-            table.add_row(str(c["id"]), c.get("shortname") or "", c.get("fullname") or "")
+        from ..moodle import reader
+        table = Table("id", "short name", "name", "code")
+        for c in guarded(reader.my_courses):
+            table.add_row(str(c["id"]), c.get("short") or "", c.get("name") or "",
+                          c.get("subject") or "-")
         console.print(table)
 
     @app.command()
     def sync(subject: str, dry_run: bool = typer.Option(False, "--dry-run")):
         """Download and index new course material from Moodle."""
-        from ..integrations.moodle import sync as ms
+        from ..moodle import sync as ms
         result = guarded(ms.sync_subject, subject.upper(), dry_run=dry_run)
         for line in result["added"]:
             console.print(f"[green]+[/green] {line}")
@@ -59,8 +60,8 @@ def register(app: typer.Typer) -> None:
                     all_: bool = typer.Option(False, "--all", help="Include submitted ones"),
                     json_out: bool = typer.Option(False, "--json")):
         """Moodle activities with due dates: what is pending, soonest first."""
-        from ..integrations.moodle import sync as ms
-        items = guarded(ms.assignments, subject.upper() if subject else None)
+        from ..moodle import reader
+        items = guarded(reader.deadlines, subject.upper() if subject else None)
         if not all_:
             items = [t for t in items if t["status"] != "submitted"]
         if json_out:
@@ -82,7 +83,7 @@ def register(app: typer.Typer) -> None:
     def assignment_fetch(subject: str, cmid: int = typer.Argument(..., help="id= of the URL"),
                          dest: Path = typer.Argument(...)):
         """Download an assignment's description and attachments."""
-        from ..integrations.moodle import sync as ms
+        from ..moodle import sync as ms
         result = guarded(ms.fetch_assignment, subject.upper(), cmid, dest)
         console.print(f"{result['assignment']}: {result['description']}")
         for f in result["attachments"]:
@@ -92,7 +93,7 @@ def register(app: typer.Typer) -> None:
     @assignment_app.command("submission")
     def assignment_submission(subject: str, cmid: int, dest: Path):
         """Download what you (or your team) submitted."""
-        from ..integrations.moodle import sync as ms
+        from ..moodle import sync as ms
         result = guarded(ms.fetch_submission, subject.upper(), cmid, dest)
         console.print(f"{result['assignment']}: {result['status']}")
         for f in result["attachments"]:
@@ -103,10 +104,10 @@ def register(app: typer.Typer) -> None:
     @app.command()
     def tasks(subject: str = typer.Argument(None), offline: bool = typer.Option(False)):
         """Task board: Moodle status joined with the local TASK.md folders."""
-        from ..integrations.moodle import sync as ms
+        from ..moodle import reader
         from ..planning import tasks as tb
         code = subject.upper() if subject else None
-        rows = guarded(tb.board, [] if offline else guarded(ms.assignments, code), code)
+        rows = guarded(tb.board, [] if offline else guarded(reader.deadlines, code), code)
         table = Table("subject", "task", "due", "days", "moodle", "local", "methods")
         for row in sorted(rows, key=lambda r: r["due"] or 10**12):
             due = time.strftime("%Y-%m-%d", time.localtime(row["due"])) if row["due"] else "-"
@@ -203,7 +204,7 @@ def register(app: typer.Typer) -> None:
                send: str = typer.Option(None, "--send", help="Mail account id to send from"),
                to: str = typer.Option(None, "--to", help="Recipient (default: the account)")):
         """Morning summary or change alerts. No model: every line comes from a source."""
-        from ..integrations.mail import base as mail
+        from ..mail import base as mail
         from ..planning import digest as dg
         data = guarded(dg.build, hours=hours, alerts=alerts)
         if html:

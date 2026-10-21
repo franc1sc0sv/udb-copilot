@@ -17,7 +17,6 @@ from . import settings
 BUNDLE_ENV = "UDB_SECRETS"
 WORKSPACE_DIR = Path("~/.google_workspace_mcp/credentials").expanduser()
 WORKSPACE_ENV = Path("~/.config/workspace-mcp/env").expanduser()
-LEGACY_MOODLE = Path("~/.config/udb-vault/moodle-token").expanduser()
 CLIENT_KEYS = ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET")
 
 
@@ -65,8 +64,6 @@ def export() -> tuple[str, list[str]]:
         for path in folder.iterdir():
             if path.is_file():
                 files[f"udb/{path.name}"] = path.read_text(encoding="utf-8")
-    if "udb/moodle-token" not in files and LEGACY_MOODLE.exists():
-        files["udb/moodle-token"] = LEGACY_MOODLE.read_text(encoding="utf-8")
     if WORKSPACE_DIR.exists():
         for path in WORKSPACE_DIR.glob("*.json"):
             if "@" in path.name:

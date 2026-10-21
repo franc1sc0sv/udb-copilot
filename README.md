@@ -197,11 +197,10 @@ index/                            generated: search index, boards (not committed
 ```bash
 git clone https://github.com/franc1sc0sv/udb-copilot && cd udb-copilot
 uv sync --extra dev
-uv run pytest
-uv run ruff check src tests
+uv run ruff check src
 ```
 
-The tests run on `tests/fixtures/home`, a small license-free demo vault.
+There is no test suite: changes are checked by running `udb` against a real vault.
 Architecture notes are in [docs/architecture.md](docs/architecture.md).
 
 ## License

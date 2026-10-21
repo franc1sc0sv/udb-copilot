@@ -5,7 +5,6 @@ import re
 from datetime import date
 from pathlib import Path
 
-from ..core import schema
 from ..core.paths import registry_path, sources_dir, subject_dir
 
 KINDS = ("course", "class", "external", "exercise")
@@ -24,7 +23,7 @@ def read_all(code: str) -> list[dict]:
     path = registry_path(code)
     if not path.exists():
         return []
-    return [schema.normalize_record(json.loads(line))
+    return [json.loads(line)
             for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 

@@ -1,6 +1,0 @@
-passing_grade: 6.0
-subjects:
-  DEMO:
-    source: SRC-DEMO-0001
-    items:
-      - {key: demo-t1, label: 'Tarea 1', weight: 20, kind: entrega, end: 2026-03-10, moodle: ['tarea 1'], evidence: 'ley de Ohm'}

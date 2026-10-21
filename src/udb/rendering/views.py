@@ -69,7 +69,7 @@ def build(kind: str, subject: str | None = None) -> str:
         from ..planning import agenda as ag
         return agenda(ag.build(code))
     if kind == "tasks":
-        from ..integrations.moodle import sync
+        from ..moodle import reader
         from ..planning import tasks as tb
-        return tasks(tb.board(sync.assignments(code), code))
+        return tasks(tb.board(reader.deadlines(code), code))
     raise ValueError("kind must be digest, status, agenda or tasks")

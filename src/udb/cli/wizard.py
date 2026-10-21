@@ -14,7 +14,7 @@ KINDS_ES = {"engineering": "ingeniería", "math": "matemática", "physics": "fí
 
 
 def _store_secret(account: dict, value: str) -> None:
-    from ..integrations.mail import base
+    from ..mail import base
     path = base.secret_path(account)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch(mode=0o600, exist_ok=True)
@@ -32,7 +32,7 @@ def _save_account(account: dict) -> None:
 
 
 def _test(account: dict) -> bool:
-    from ..integrations.mail import base
+    from ..mail import base
     try:
         base.provider_for(account).search(base.Query(since_days=2, limit=1))
         console.print("[green]Connected: the account works.[/green]")
@@ -61,8 +61,8 @@ def mail_add() -> dict | None:
                       "2. Create a password named udb and copy the 16 letters.\n")
         _store_secret(account, getpass.getpass("Paste the app password (hidden): "))
     elif choice == "1":
-        from ..integrations.google import oauth
-        from ..integrations.mail import base
+        from ..google import oauth
+        from ..mail import base
         account = {"id": account_id, "provider": "gmail", "address": address, "send": send,
                    "calendar": Confirm.ask("Read Google Calendar too?", default=True),
                    "drive": Confirm.ask("Use Google Drive too?", default=False)}
@@ -71,7 +71,7 @@ def mail_add() -> dict | None:
             ["drive"] if account["drive"] else [])
         oauth.write_creds(base.secret_path(account), oauth.login(scopes))
     elif choice == "3":
-        from ..integrations.mail import outlook
+        from ..mail import outlook
         university = Confirm.ask("Is it the university account (@udb.edu.sv)?", default=True)
         account = {"id": account_id, "provider": "outlook", "address": address,
                    "tenant": "organizations" if university else "consumers",
@@ -92,14 +92,14 @@ def mail_add() -> dict | None:
 
 
 def _pick_courses() -> None:
-    from ..integrations.moodle import sync
-    courses = sync.list_courses()
+    from ..moodle import reader
+    courses = reader.my_courses()
     current = {s["moodle_course_id"]: s for s in load_yaml("subjects.yaml").get("subjects", [])
                if s.get("moodle_course_id")}
     console.print("\nYour Moodle courses:")
     for i, c in enumerate(courses, 1):
         mark = "✓" if c["id"] in current else " "
-        console.print(f"  {mark} {i:2d}  {c['fullname']}  [dim]({c['shortname']})[/dim]")
+        console.print(f"  {mark} {i:2d}  {c['name']}  [dim]({c['short']})[/dim]")
     picked = Prompt.ask("Numbers of the courses you take this term, separated by commas",
                         default=",".join(str(i) for i, c in enumerate(courses, 1)
                                          if c["id"] in current))
@@ -108,13 +108,13 @@ def _pick_courses() -> None:
     for raw in [p.strip() for p in picked.split(",") if p.strip().isdigit()]:
         course = courses[int(raw) - 1]
         old = current.get(course["id"], {})
-        code = Prompt.ask(f"\n{course['fullname']}\n  code", default=old.get(
-            "code", re.sub(r"[^A-Z]", "", (course["shortname"] or "").upper())[:3] or "SUB"))
+        code = Prompt.ask(f"\n{course['name']}\n  code", default=old.get(
+            "code", re.sub(r"[^A-Z]", "", (course["short"] or "").upper())[:3] or "SUB"))
         kind = Prompt.ask("  kind (" + ", ".join(f"{k}={v}" for k, v in KINDS_ES.items()) + ")",
                           choices=list(schema.KINDS), default=old.get("kind", "general"))
         days = Prompt.ask("  class days (mon,tue,wed,thu,fri,sat)",
                           default=",".join(old.get("days", [])))
-        subjects.append({**old, "code": code.upper(), "name": course["fullname"], "kind": kind,
+        subjects.append({**old, "code": code.upper(), "name": course["name"], "kind": kind,
                          "term": term, "moodle_course_id": course["id"],
                          "days": [d.strip()[:3] for d in days.split(",") if d.strip()]})
     save_yaml("subjects.yaml", {"subjects": subjects})
@@ -123,9 +123,9 @@ def _pick_courses() -> None:
 
 def setup_all() -> None:
     """Moodle login, subjects, mail accounts, Claude Code wiring."""
-    from .. import setup
+    from ..claude import setup
     from ..core import settings
-    from ..integrations.moodle import client
+    from ..moodle import client
 
     home = settings.get().home
     console.print(f"[bold]udb setup[/bold] in {home}\n")

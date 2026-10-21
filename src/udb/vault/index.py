@@ -167,7 +167,7 @@ def load_segments(subject: str, source_id: str) -> list[dict]:
 def frame_chunks(code: str, source_id: str) -> list[dict]:
     """What was read on each board still of a recording, one chunk per still, citable
     with `t=` and `frame=`. Intro cards and half-written stills are left out."""
-    from ..integrations.recordings.frames import frame_index
+    from ..media.frames import frame_index
     out = []
     for f in frame_index(code, source_id):
         text = (f.get("text") or "").strip()

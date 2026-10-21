@@ -243,17 +243,17 @@ def diagram_suggest(shape: str) -> str:
 def moodle_assignments(subject: str = "") -> str:
     """Graded activities from Moodle with due date and submission status, soonest first.
     Empty subject = all subjects. The only way to read Moodle."""
-    from ..integrations.moodle import sync
-    return ok(sync.assignments(subject or None))
+    from ..moodle import reader
+    return ok(reader.deadlines(subject or None))
 
 
 @server.tool()
 def tasks_board(subject: str = "") -> str:
     """Moodle activities joined with the local TASK.md folders."""
-    from ..integrations.moodle import sync
+    from ..moodle import reader
     from ..planning import tasks
     code = subject.upper() or None
-    return ok(tasks.board(sync.assignments(code), code))
+    return ok(tasks.board(reader.deadlines(code), code))
 
 
 @server.tool()
@@ -278,7 +278,7 @@ def digest(hours: int = 24, alerts: bool = False) -> str:
 @server.tool()
 def mail_search(query: str = "", days: int = 7, account: str = "", limit: int = 25) -> str:
     """Search every configured mail account (Gmail, Outlook, IMAP). Read-only."""
-    from ..integrations.mail import base as mail
+    from ..mail import base as mail
     terms = [t for t in query.split(",") if t.strip()] if query else []
     found, sources = mail.search_all(mail.Query(since_days=days, terms=terms, limit=limit),
                                      [account] if account else None)
@@ -297,7 +297,7 @@ def projects(subject: str = "") -> str:
 @server.tool()
 def recording_board(subject: str = "") -> str:
     """Each class recording: downloaded, transcribed, frames. Start here for recordings."""
-    from ..integrations.recordings import catalog
+    from ..media import catalog
     rows = [r for r in catalog.board() if not subject or r["subject"] == subject.upper()]
     return ok(rows or "Empty catalog. Run in a terminal: udb recording discover")
 
@@ -308,7 +308,7 @@ def recording_radar(recording_id: str, minimum: int = 5) -> str:
     exam" and announcements, with relative dates resolved to the class day. No model: it
     only finds and quotes, so it cannot invent an assessment. Present hits as "dicho en
     clase, por confirmar" unless Moodle or mail confirms them."""
-    from ..integrations.recordings import catalog, radar, stream
+    from ..media import catalog, radar, stream
     g = catalog.find(recording_id)
     if not g.get("source_id"):
         raise ValueError(f"{g['id']} has no transcript. Transcribe it or run "
@@ -327,7 +327,7 @@ def recording_radar(recording_id: str, minimum: int = 5) -> str:
 @server.tool()
 def recording_frames(recording_id: str) -> str:
     """Frame index of a recording: timestamp and OCR text of each screen. Pick one to look at."""
-    from ..integrations.recordings import catalog, frames
+    from ..media import catalog, frames
     g = catalog.find(recording_id)
     rows = frames.frame_index(g["subject"], g.get("source_id") or "")
     return ok([{"n": f["n"], "t": anchors.hhmmss(f["t"]) if f.get("t") is not None else None,
@@ -339,7 +339,7 @@ def recording_frames(recording_id: str) -> str:
 def recording_frame(recording_id: str, n: int) -> list:
     """One frame as an image, to SEE what the teacher showed on screen. Frames live in
     derived/ and this is the only valid way to open them."""
-    from ..integrations.recordings import catalog, frames
+    from ..media import catalog, frames
     g = catalog.find(recording_id)
     path = frames.frame_path(g["subject"], g["source_id"], int(n))
     info = next((f for f in frames.frame_index(g["subject"], g["source_id"])

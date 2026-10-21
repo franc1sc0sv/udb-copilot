@@ -152,7 +152,7 @@ def check_anchor(code: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
 
 def _check_frame(code: str, source_id: str, anchor: anchors.Anchor, path: str) -> list[Finding]:
     """A board still: the quote must be in the text read from that still."""
-    from ..integrations.recordings.frames import frame_index
+    from ..media.frames import frame_index
     n = int(anchor.fields["frame"])
     frame = next((f for f in frame_index(code, source_id) if int(f["n"]) == n), None)
     if frame is None:

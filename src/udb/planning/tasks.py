@@ -27,7 +27,6 @@ from ..core import notes
 from ..core.paths import cycles
 
 STATUSES = ("todo", "in-progress", "submitted", "graded")
-LEGACY_STATUS = {"pending": "todo", "done": "submitted"}
 
 
 def read_task(path: Path) -> dict:
@@ -36,7 +35,7 @@ def read_task(path: Path) -> dict:
     task.setdefault("id", path.parent.name)
     task.setdefault("subject", path.parents[2].name)
     task.setdefault("term", path.parents[3].name)
-    task["status"] = LEGACY_STATUS.get(str(task.get("status", "todo")), task.get("status", "todo"))
+    task["status"] = str(task.get("status", "todo"))
     methods = task.get("methods", task.get("method"))
     if isinstance(methods, str):
         methods = [] if methods in ("-", "") else [m.strip() for m in methods.split(",")]

@@ -57,7 +57,7 @@ def check():
 
 def google_mcp(args: list[str]) -> None:
     """Start the Google Workspace MCP with the shared OAuth app (local or cloud)."""
-    from ..integrations.mail import base
+    from ..mail import base
 
     secrets.restore()
     env = dict(os.environ)
