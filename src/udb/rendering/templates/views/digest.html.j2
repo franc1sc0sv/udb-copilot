@@ -13,7 +13,7 @@
 {{ row_start() }}
   <span style="min-width:72px">{{ pill(i.days ~ " d" if not i.submitted else "entregada", tone_for_days(i.days, i.submitted)) }}</span>
   <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:34px">{{ i.subject }}</span>
-  <span style="flex:1;min-width:0">{{ i.label }}</span>
+  <span style="flex:1;min-width:0">{{ i.label }}{% if i.route_due %}<span style="font-size:12px;color:var(--text-warning)"> · ⚠ la ruta dice {{ i.route_due }}</span>{% endif %}</span>
   {% if i.weight %}<span style="font-size:13px;color:var(--text-secondary)">{{ i.weight }}%</span>{% endif %}
 </div>
 {% endfor %}

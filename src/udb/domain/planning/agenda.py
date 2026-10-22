@@ -252,13 +252,16 @@ def build(subject: str | None = None, online: bool = True, now: datetime | None 
             if row:
                 used.add(row["url"])
             item["moodle"] = row
+            item["route_end"] = item["end"]
             if row and row["due"]:
+                # Moodle decides when it closes; the route date only shows if they disagree.
                 due = datetime.fromtimestamp(row["due"], zone).date()
                 item["moodle_due"] = due
                 if abs((due - item["end"]).days) > 1:
                     item["mismatch"] = True
                     alerts.append({"level": "warn", "subject": code, "text":
                                    f"{item['label']}: la ruta dice {fmt(item['end'])} y Moodle cierra {fmt(due)}."})
+                item["end"] = due
             if row and row["url"] in local:
                 item["local_status"] = local[row["url"]]["status"]
             item["days"] = (item["end"] - today).days

@@ -18,7 +18,7 @@
   {% for it in items if it.state != 'submitted' and (it.end >= today or it.get('late')) %}
   {{ row_start() }}
     <span style="min-width:64px">{% if it.get('late') %}{{ pill("vencida", 'danger') }}{% else %}{{ pill(it.days ~ " d", tone_for_days(it.days, false)) }}{% endif %}</span>
-    <span style="flex:1;min-width:0">{{ it.label }}<span style="font-size:12px;color:var(--text-muted)"> · {{ fmt(it.end) }}{% if it.get('mismatch') %} · Moodle {{ fmt(it.moodle_due) }}{% endif %}</span></span>
+    <span style="flex:1;min-width:0">{{ it.label }}<span style="font-size:12px;color:var(--text-muted)"> · {{ fmt(it.end) }}{% if it.get('mismatch') %}<span style="color:var(--text-warning)"> · ⚠ la ruta dice {{ fmt(it.route_end) }}</span>{% endif %}</span></span>
     <span style="font-size:12px;color:var(--text-secondary)">{{ "sin publicar" if it.state in ('not-published', 'exam') else "pendiente" }}</span>
     <span style="font-size:13px;color:var(--text-secondary);min-width:34px;text-align:right">{{ it.weight }}%</span>
   </div>

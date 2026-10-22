@@ -60,7 +60,7 @@ def countdown(rows: list[dict], today: date) -> list[dict]:
             if days < 0 or days > HORIZON_DAYS:
                 continue
             out.append({"subject": code, "label": raw["label"], "due": due.isoformat(),
-                        "route_due": item["end"].isoformat() if due != item["end"] else None,
+                        "route_due": item["end"].isoformat() if abs((due - item["end"]).days) > 1 else None,
                         "days": days, "weight": raw.get("weight"),
                         "kind": agenda.KINDS.get(raw.get("kind"), raw.get("kind")),
                         "submitted": bool(submitted), "url": row["url"] if row else None})
@@ -244,7 +244,8 @@ def as_text(d: dict) -> str:
             for i in d["countdown"]:
                 mark = " ✓ entregada" if i["submitted"] else ""
                 weight = f" · {i['weight']}%" if i["weight"] else ""
-                lines.append(f"  - {i['days']:>2} d · {i['subject']} · {i['label']}{weight}{mark}")
+                clash = f" · ⚠ la ruta dice {i['route_due']}" if i.get("route_due") else ""
+                lines.append(f"  - {i['days']:>2} d · {i['subject']} · {i['label']}{weight}{mark}{clash}")
     if d.get("said_in_class"):
         lines.append("\nDicho en clase (por confirmar):")
         for x in d["said_in_class"]:
