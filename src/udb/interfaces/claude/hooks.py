@@ -204,7 +204,8 @@ def session_start() -> int:
 CLASSROOM_RE = re.compile(
     r"\b(tareas?|pendientes?|entregas?|entregar|parcial(es)?|ex[aá]men(es)?|pruebas?|quiz|"
     r"foros?|aula|moodle|vence|vencen|fecha|deadline|due|assignments?|homework|notas?|"
-    r"calificaci[oó]n|agenda|hoy|ma[ñn]ana|semana|horario|evaluaci[oó]n|desaf[ií]o|gu[ií]a)\b",
+    r"calificaci[oó]n|agenda|hoy|ma[ñn]ana|semana|horario|evaluaci[oó]n|desaf[ií]o|gu[ií]a|"
+    r"novedad(es)?|nuevo|calendario|reuni[oó]n|resumen|avis(a|ar|os)|pas[oó]|pasa)\b",
     re.IGNORECASE)
 CACHE_MINUTES = 30
 
@@ -231,7 +232,11 @@ def prompt_context(prompt: str) -> int:
                     "text": digest.as_text(built)}
             cache.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         context = (f"Classroom state checked by udb at {data['checked']} (Moodle, mail, routes; "
-                   "no model). Use it; call the digest or moodle_assignments tool for detail.\n\n"
+                   "no model). Use it; call the digest or moodle_assignments tool for detail.\n"
+                   "Show it, do not only list it: tasks, deadlines and grades -> `view` kind=tasks "
+                   "(or kind=agenda for the grade breakdown); what is new or what is happening -> "
+                   "`view` kind=digest. Pass the HTML unchanged to show_widget, then add two or "
+                   "three sentences. Starred (*) lines are new since the last digest.\n\n"
                    + data["text"])
     except settings.HomeNotFound:
         return 0

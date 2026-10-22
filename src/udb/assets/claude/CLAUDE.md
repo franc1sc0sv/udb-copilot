@@ -46,3 +46,13 @@ index/         generated: search index, boards, reports (not committed except le
 - Before ending a turn that wrote vault files: `udb verify --path <file>` and fix it.
 
 Skills `/udb-*` hold the detailed procedures; read the one that matches the task.
+
+## Show the classroom, do not only list it
+
+Whenever the student asks about tasks, deadlines, exams, grades or percentages, call the
+`view` tool (kind `tasks`; kind `agenda` for the grade breakdown) and pass the HTML unchanged
+to `show_widget`. Whenever they ask what is new, what is happening or for a summary, call
+`view` kind `digest`: it holds the Moodle calendar, what changed in the last week (starred
+items are new), unread notifications, teacher mail and what was said in class. Then add two or
+three sentences: what is urgent and the next step. Without `show_widget`, answer from the JSON
+tools. A source that failed is named, never hidden.

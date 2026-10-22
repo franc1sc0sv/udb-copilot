@@ -11,10 +11,11 @@ teacher mail since the last digest.
 Alerts (`alerts=True`): only what is new in the window — a new or edited
 assignment, an announcement, a teacher email. Empty means "send nothing".
 """
+import json
 from datetime import date, datetime
 
 from udb.config import settings
-from udb.config.paths import load_subjects, load_yaml
+from udb.config.paths import index_dir, load_subjects, load_yaml
 from udb.domain.planning import agenda
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -107,24 +108,77 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
                 for s in found[1]]
     labelled = [m for m in messages if m["labels"]] if mail.filters() else messages
 
+    news = _source(sources, "moodle-news", lambda: moodle_news(hours), {"updates": [], "notifications": []})
     data = {
         "generated": now.isoformat(timespec="minutes"), "date": today.isoformat(),
         "weekday": WEEKDAYS[today.weekday()], "hours": hours, "mode": "alerts" if alerts else "digest",
         "classroom": {"changed_assignments": changed_assignments(rows, since),
-                      "announcements": announcements, "forum_posts": posts},
+                      "announcements": announcements, "forum_posts": posts,
+                      "updates": news["updates"], "notifications": news["notifications"]},
         "mail": labelled, "sources": sources,
     }
     if alerts:
-        data["empty"] = not (data["classroom"]["changed_assignments"] or announcements or labelled)
+        cr = data["classroom"]
+        data["empty"] = not (cr["changed_assignments"] or announcements or labelled
+                             or cr["updates"] or cr["notifications"])
         return data
 
     data["said_in_class"] = _source(sources, "recordings", lambda: said_in_class(today), [])
+    data["calendar"] = _source(sources, "moodle-calendar", lambda: moodle_calendar(), [])
     items = countdown(rows, today)
     data["classes_today"] = classes_today(today)
     data["countdown"] = items
     data["due_soon"] = [i for i in items if i["days"] <= DUE_SOON_DAYS and not i["submitted"]]
-    data["events_today"] = _source(sources, "calendar", lambda: _events_today(today), [])
+    data["events_today"] = _source(sources, "Google Calendar", lambda: _events_today(today), [])
     return data
+
+
+CALENDAR_DAYS = 21
+NEWS_HOURS = 168
+NOISE = ("calendario académico", "enlaces de tutorías")
+
+
+def moodle_calendar(days: int = CALENDAR_DAYS) -> list[dict]:
+    """Every Moodle calendar event in the next `days`: deadlines and live sessions."""
+    from udb.integrations.moodle import reader
+    with reader.connect() as api:
+        return reader.calendar(api, days=days)
+
+
+def _key(kind: str, item: dict) -> str:
+    return (f"u:{item['subject']}:{item['cmid']}:{item['when']}" if kind == "u"
+            else f"n:{item['when']}:{item['subject']}")
+
+
+def _seen() -> set[str]:
+    path = index_dir() / "digest_seen.json"
+    return set(json.loads(path.read_text())) if path.exists() else set()
+
+
+def mark_seen(data: dict) -> None:
+    """Remember what this digest showed, so the next one flags only what is new."""
+    cr = data["classroom"]
+    keys = _seen() | {_key("u", u) for u in cr["updates"]} | {_key("n", n) for n in cr["notifications"]}
+    (index_dir() / "digest_seen.json").write_text(json.dumps(sorted(keys)))
+
+
+def moodle_news(hours: int) -> dict:
+    """What changed in the classroom (edited activities, new files, grades) in the last week
+    and the unread notifications, each flagged `new` if no earlier digest showed it. Labels
+    that Moodle touches every day are left out."""
+    from udb.integrations.moodle import reader
+    with reader.connect() as api:
+        updates = [u for u in reader.updates(api, hours=max(hours, NEWS_HOURS))
+                   if u["name"] and u["subject"] and not any(n in " ".join(u["name"].lower().split()) for n in NOISE)]
+        notes = reader.notifications(api, limit=15, unread_only=True)
+    seen = _seen()
+    for u in updates:
+        u["new"] = _key("u", u) not in seen
+    for n in notes:
+        n["subject"] = n["subject"] or ""
+        n["new"] = _key("n", n) not in seen
+    updates.sort(key=lambda u: u["when"] or "", reverse=True)
+    return {"updates": updates, "notifications": notes}
 
 
 SAID_DAYS = 14
@@ -178,6 +232,9 @@ def as_text(d: dict) -> str:
                                                         for c in d["classes_today"]))
         if d.get("events_today"):
             lines.append("Calendario: " + "; ".join(e["title"] for e in d["events_today"]))
+        if d.get("calendar"):
+            lines.append("\nCalendario de Moodle (próximos 21 días):")
+            lines += [f"  - {e['when']} · {e['subject'] or '?'} · {e['name']}" for e in d["calendar"]]
         if d["due_soon"]:
             lines.append("\nVence pronto:")
             lines += [f"  - {i['subject']} · {i['label']} · {_when(i['days'])} ({i['due']})"
@@ -200,6 +257,14 @@ def as_text(d: dict) -> str:
         lines.append("\nActividades nuevas o cambiadas en Moodle:")
         lines += [f"  - {a['subject']} · {a['name']} (vence {a['due'] or 'sin fecha'})"
                   for a in cr["changed_assignments"]]
+    if cr["updates"]:
+        lines.append("\nCambios en Moodle (última semana, * = nuevo desde el último resumen):")
+        lines += [f"  {'*' if u['new'] else '-'} {u['subject'] or '?'} · {u['name']} "
+                  f"({', '.join(u['changed'])}) {u['when'] or ''}" for u in cr["updates"][:20]]
+    if cr["notifications"]:
+        lines.append("\nNotificaciones sin leer:")
+        lines += [f"  {'*' if n['new'] else '-'} {n['when']} · {n['subject']}"
+                  for n in cr["notifications"]]
     if cr["announcements"]:
         lines.append("\nAnuncios:")
         lines += [f"  - {a['subject']} · {a['topic']} — {a['author']}" for a in cr["announcements"]]

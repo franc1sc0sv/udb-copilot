@@ -473,19 +473,31 @@ def deadlines(code: str | None = None) -> list[dict]:
                 "instructions": text(i.get("intro"))[:400],
                 "url": f"{api.base}/mod/assign/view.php?id={i['cmid']}"}
                for i, info in zip(items, infos, strict=True)]
-        # Quizzes, forums and the rest: the calendar only lists what is pending.
-        events = api.call("core_calendar_get_action_events_by_timesort",
-                          timesortfrom=int(time.time()) - 60 * 86400, limitnum=50)
-        for ev in events.get("events", []):
-            cid = (ev.get("course") or {}).get("id")
-            if cid not in by_course or ev.get("modulename") == "assign":
-                continue
-            out.append({"subject": by_course[cid], "type": ev.get("modulename") or "event",
-                        "name": ev["name"], "opens": 0, "due": ev.get("timesort") or 0,
-                        "cutoff": 0, "status": "not-submitted", "files": [], "grade": None,
-                        "modified": ev.get("timemodified") or 0, "instructions": "",
-                        "url": ev.get("url") or ""})
+        out += _quiz_rows(api, by_course)
     return sorted(out, key=lambda t: t["due"] or 10**12)
+
+
+def _quiz_rows(api: Api, by_course: dict[int, str]) -> list[dict]:
+    """Every quiz, past and future, with its best grade (exams are quizzes in Moodle)."""
+    data = api.call("mod_quiz_get_quizzes_by_courses", **_ids("courseids", list(by_course)))
+    items = data.get("quizzes", [])
+
+    def one(q: dict) -> tuple[str, str | None]:
+        attempts = api.call("mod_quiz_get_user_attempts", quizid=q["id"], status="finished")
+        best = api.call("mod_quiz_get_user_best_grade", quizid=q["id"])
+        grade = None
+        if best.get("hasgrade"):
+            grade = f"{float(best['grade']):.2f} / {float(q.get('grade') or 10):.2f}".replace(".", ",")
+        return ("submitted" if attempts.get("attempts") else "not-submitted"), grade
+
+    results = _parallel(one, items)
+    return [{"subject": by_course[q["course"]], "type": "quiz", "name": q["name"],
+             "opens": q.get("timeopen") or 0, "due": q.get("timeclose") or 0, "cutoff": 0,
+             "status": status, "files": [], "grade": grade, "modified": q.get("timemodified") or 0,
+             "instructions": text(q.get("intro"))[:400],
+             "url": f"{api.base}/mod/quiz/view.php?id={q['coursemodule']}"}
+            for q, (status, grade) in zip(items, results, strict=True)
+            if q["course"] in by_course]
 
 
 def news(codes: list[str], since: float) -> dict[str, dict]:

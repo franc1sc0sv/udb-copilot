@@ -19,7 +19,16 @@
 {% endfor %}
 {% endif %}
 {% endif %}
+{% if d.calendar %}
+<div style="font-size:13px;color:var(--text-secondary);margin:1.25rem 0 4px">Calendario de Moodle · próximos 21 días</div>
+{% for e in d.calendar %}{{ row_start() }}<i class="ti ti-{{ 'video' if e.type == 'course' else 'clipboard-check' }}" aria-hidden="true" style="font-size:16px;color:var(--text-accent)"></i><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:34px">{{ e.subject }}</span><span style="flex:1;min-width:0">{{ e.name }}</span><span style="font-size:13px;color:var(--text-secondary)">{{ e.when }}</span></div>{% endfor %}
+{% endif %}
 {% set cr = d.classroom %}
+{% if cr.updates or cr.notifications %}
+<div style="font-size:13px;color:var(--text-secondary);margin:1.25rem 0 4px">Cambios en Moodle · última semana</div>
+{% for u in cr.updates %}{{ row_start() }}{{ pill("nuevo", 'accent') if u.new else pill("visto") }}<span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:34px">{{ u.subject or '?' }}</span><span style="flex:1;min-width:0">{{ u.name }}</span><span style="font-size:12px;color:var(--text-secondary)">{{ u.changed | join(', ') }}</span><span style="font-size:13px;color:var(--text-secondary)">{{ u.when or '' }}</span></div>{% endfor %}
+{% for n in cr.notifications %}{{ row_start() }}{{ pill("nuevo", 'accent') if n.new else pill("visto") }}<i class="ti ti-bell" aria-hidden="true" style="font-size:16px;color:var(--text-secondary)"></i><span style="flex:1;min-width:0">{{ n.subject }}</span><span style="font-size:13px;color:var(--text-secondary)">{{ n.when }}</span></div>{% endfor %}
+{% endif %}
 {% if cr.changed_assignments or cr.announcements %}
 <div style="font-size:13px;color:var(--text-secondary);margin:1.25rem 0 4px">Novedades en el aula</div>
 {% for a in cr.changed_assignments %}{{ row_start() }}<i class="ti ti-file-plus" aria-hidden="true" style="font-size:16px;color:var(--text-accent)"></i><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)">{{ a.subject }}</span><span style="flex:1">{{ a.name }}</span><span style="font-size:13px;color:var(--text-secondary)">{{ a.due or "sin fecha" }}</span></div>{% endfor %}

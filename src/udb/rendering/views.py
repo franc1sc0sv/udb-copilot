@@ -7,6 +7,7 @@ Claude's CSS variables, so they follow light and dark mode. Long content
 """
 from datetime import date
 
+from udb.domain.planning.agenda import fmt
 from udb.rendering.jinja import env
 
 STAGE_TONE = {"complete": "success", "no material": "neutral", "render lesson": "accent",
@@ -35,7 +36,7 @@ def tone_for_days(days: int, done: bool) -> str:
 def _render(name: str, **data) -> str:
     return env().get_template(f"views/{name}.html.j2").render(
         when=when, tone_for_days=tone_for_days, stage_tone=STAGE_TONE, stage_es=STAGE_ES,
-        state_es=STATE_ES, **data).strip()
+        state_es=STATE_ES, fmt=fmt, **data).strip()
 
 
 def digest(d: dict) -> str:
@@ -51,9 +52,18 @@ def agenda(data: dict) -> str:
                    sources=data["sources"], today=data["today"])
 
 
+def _task_rank(row: dict) -> tuple:
+    """Open work first (soonest on top), then overdue and missing, then what is done."""
+    done = row["moodle"] == "submitted"
+    open_ = row["days"] is None or row["days"] >= 0
+    if done:
+        return (2, -(row["due"] or 0))
+    return (0, row["due"] or 10**12) if open_ else (1, -(row["due"] or 0))
+
+
 def tasks(rows: list[dict]) -> str:
     today = date.today()
-    return _render("tasks", rows=sorted(rows, key=lambda r: r["due"] or 10**12), today=today)
+    return _render("tasks", rows=sorted(rows, key=_task_rank), today=today)
 
 
 def build(kind: str, subject: str | None = None) -> str:
@@ -61,7 +71,10 @@ def build(kind: str, subject: str | None = None) -> str:
     code = subject.upper() if subject else None
     if kind == "digest":
         from udb.domain.planning import digest as dg
-        return digest(dg.build(hours=24))
+        built = dg.build(hours=24)
+        html = digest(built)
+        dg.mark_seen(built)
+        return html
     if kind == "status":
         from udb.domain.planning import status as st
         return status(st.build(code))

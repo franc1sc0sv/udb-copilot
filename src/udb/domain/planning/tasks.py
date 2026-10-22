@@ -68,6 +68,7 @@ def board(moodle_rows: list[dict], code: str | None = None) -> list[dict]:
         if task:
             used.add(item["url"])
         rows.append({"subject": item["subject"], "title": item["name"], "due": item["due"],
+                     "type": item["type"], "grade": item.get("grade"),
                      "days": days_left(item["due"]), "moodle": item["status"],
                      "local": task["status"] if task else "no folder",
                      "methods": task["methods"] if task else [],
@@ -76,7 +77,8 @@ def board(moodle_rows: list[dict], code: str | None = None) -> list[dict]:
         if task.get("moodle_url") in used:
             continue
         rows.append({"subject": task["subject"], "title": task.get("title", task["id"]),
-                     "due": 0, "days": None, "moodle": "-", "local": task["status"],
+                     "due": 0, "days": None, "moodle": "-", "local": task["status"], "type": "local",
+                     "grade": None,
                      "methods": task["methods"], "folder": str(task["folder"]), "url": None})
     return rows
 

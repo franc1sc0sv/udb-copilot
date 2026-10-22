@@ -1,6 +1,6 @@
 {% from "views/_macros.html.j2" import pill, row_start %}
 <h2 class="sr-only">Agenda de evaluaciones por materia, con el reparto de la nota.</h2>
-{% for a in alerts[:4] %}<div style="font-size:13px;margin-bottom:6px;color:var(--text-{{ 'danger' if a.level == 'bad' else 'warning' }})"><i class="ti ti-alert-triangle" aria-hidden="true"></i> {{ a.subject }}: {{ a.text }}</div>{% endfor %}
+{% for a in alerts[:6] %}<div style="font-size:13px;margin-bottom:6px;color:var(--text-{{ 'danger' if a.level == 'bad' else 'warning' }})"><i class="ti ti-alert-triangle" aria-hidden="true"></i> {{ a.subject }}: {{ a.text }}</div>{% endfor %}
 {% for s in subjects %}
 {% set b = s.breakdown %}
 <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin:12px 0">
@@ -12,10 +12,11 @@
   </div>
   <div style="font-size:12px;color:var(--text-secondary)">con nota {{ b.graded | round | int }}% · esperando {{ b.waiting | round | int }}% · por jugar {{ b.future | round | int }}%{% if b.needed is not none %} · necesitas {{ '%.1f' % b.needed }} en lo que falta{% endif %}</div>
   {% endif %}
-  {% for it in s['items'] if it.bucket == 'upcoming' or it.late %}
+  {% for it in s['items'] | sort(attribute='end') %}
+  {% set done = it.state == 'submitted' %}
   {{ row_start() }}
-    <span style="min-width:72px">{{ pill((it.days ~ " d") if it.days >= 0 else "vencida", 'danger' if it.late else tone_for_days(it.days, it.state == 'submitted')) }}</span>
-    <span style="flex:1;min-width:0">{{ it.label }}</span>
+    <span style="min-width:72px">{% if it.get('grade10') is not none %}{{ pill("nota " ~ ('%.1f' % it.get('grade10')), 'success') }}{% elif done %}{{ pill("entregada", 'success') }}{% elif it.late %}{{ pill("vencida", 'danger') }}{% elif it.days >= 0 %}{{ pill(it.days ~ " d", tone_for_days(it.days, false)) }}{% else %}{{ pill("sin nota") }}{% endif %}</span>
+    <span style="flex:1;min-width:0">{{ it.label }}<span style="font-size:12px;color:var(--text-muted)"> · {{ fmt(it.end) }}</span></span>
     <span style="font-size:12px;color:var(--text-secondary)">{{ state_es.get(it.state, it.state) }}</span>
     <span style="font-size:13px;color:var(--text-secondary);min-width:34px;text-align:right">{{ it.weight }}%</span>
   </div>
