@@ -126,6 +126,14 @@ Then `udb mail login <id>` once per account. Credentials live in
 `~/.config/udb/` (mode 600), never in the repo. In cloud sessions an account reads
 them from the variable named in `credentials_env`.
 
+Gmail, Calendar and Drive sign in with the Google Workspace MCP's OAuth app, and Google only
+accepts the redirect that app registered: `http://localhost:8000/oauth2callback` (override it
+with `GOOGLE_OAUTH_REDIRECT_URI`, the variable the MCP reads). The login listens on that port,
+so run it where your browser can reach it (not inside a network sandbox) and stop anything
+else using port 8000. `redirect_uri_mismatch` means the redirect is not registered for the app;
+`ERR_CONNECTION_REFUSED` after approving means nothing was listening on it. Scopes follow the
+account: `calendar: true`, `send: true` and `drive: true` each add theirs.
+
 ## Commands
 
 | Area | Commands |

@@ -8,6 +8,7 @@ Google's own libraries use. `access_token()` refreshes it when needed.
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import time
 import webbrowser
@@ -21,6 +22,9 @@ import httpx
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 TIMEOUT = 20.0
+# The OAuth app is the Workspace MCP's, and Google only accepts the redirect it registered
+# (the MCP's own callback). Reuse the same variable the MCP reads.
+DEFAULT_REDIRECT = "http://localhost:8000/oauth2callback"
 
 SCOPES = {
     "gmail.read": "https://www.googleapis.com/auth/gmail.readonly",
@@ -80,7 +84,7 @@ def write_creds(path: Path, creds: dict) -> None:
     path.write_text(json.dumps(creds), encoding="utf-8")
 
 
-def login(scopes: list[str], client_secret_file: Path | None = None, port: int = 8765) -> dict:
+def login(scopes: list[str], client_secret_file: Path | None = None) -> dict:
     """Run the loopback consent flow and return authorized-user credentials.
 
     The OAuth app is the one the Google Workspace MCP uses (GOOGLE_OAUTH_CLIENT_ID and
@@ -98,7 +102,7 @@ def login(scopes: list[str], client_secret_file: Path | None = None, port: int =
             raise GoogleError("no Google OAuth app found: set GOOGLE_OAUTH_CLIENT_ID and "
                               "GOOGLE_OAUTH_CLIENT_SECRET (the Workspace MCP's), or pass a client JSON")
         client_id, client_secret = client["GOOGLE_OAUTH_CLIENT_ID"], client["GOOGLE_OAUTH_CLIENT_SECRET"]
-    redirect = f"http://localhost:{port}/"
+    redirect = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI") or DEFAULT_REDIRECT
     state = secrets.token_urlsafe(16)
     url = AUTH_URL + "?" + urlencode({
         "client_id": client_id, "redirect_uri": redirect, "response_type": "code",
@@ -119,9 +123,14 @@ def login(scopes: list[str], client_secret_file: Path | None = None, port: int =
         def log_message(self, *args):
             pass
 
+    where = urlparse(redirect)
+    try:
+        server = HTTPServer((where.hostname or "localhost", where.port or 80), Handler)
+    except OSError as exc:
+        raise GoogleError(f"cannot listen on {redirect} ({exc}): stop whatever uses that "
+                          "port, then run the login again") from exc
     print(f"\nOpen this URL and approve access:\n\n{url}\n")
     webbrowser.open(url)
-    server = HTTPServer(("localhost", port), Handler)
     while "code" not in result and "error" not in result:
         server.handle_request()
     server.server_close()
