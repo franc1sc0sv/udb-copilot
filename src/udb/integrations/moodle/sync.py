@@ -124,6 +124,86 @@ def _write(folder: Path, name: str, title: str, meta: list[str], body: list[str]
     return path
 
 
+def _course_links(contents: list[dict]) -> list[tuple[str, str, str]]:
+    """Every external link a `url` module holds, except the static class pages (those are files)."""
+    out = []
+    for sec in contents:
+        for m in sec.get("modules", []):
+            if m.get("modname") != "url":
+                continue
+            for item in m.get("contents", []) or []:
+                url = item.get("fileurl") or ""
+                if url and "/materiales_didacticos/" not in url:
+                    out.append((sec.get("name", ""), m.get("name", ""), url))
+    return out
+
+
+CAPTURED_TYPES = {"resource", "folder", "url", "page", "assign", "label", "forum"}
+
+
+def _stamp_file() -> Path:
+    from udb.config.paths import index_dir
+    return index_dir() / "last_sync.json"
+
+
+def stamp(report: dict[str, list[str]]) -> None:
+    """Remember when a full sync ran and what it left out, for the session hook."""
+    import json
+    import time
+    _stamp_file().write_text(json.dumps({"at": time.time(), "gaps": report},
+                                        ensure_ascii=False), encoding="utf-8")
+
+
+def last_sync() -> dict:
+    import json
+    path = _stamp_file()
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def audit(code: str) -> list[str]:
+    """Everything in the Moodle course that did not reach the vault, so nothing is dropped
+    silently: unsupported files, activity types udb does not read, assignments without a
+    local task folder, and recordings not yet downloaded."""
+    from udb.integrations.media import catalog
+    from udb.integrations.moodle import reader
+    cid = _course_id(code)
+    known = {m for r in registry.read_all(code)
+             for m in [r.get("moodle_id"), *r.get("moodle_aliases", [])] if m}
+    gaps = []
+    with client.connect() as api:
+        contents = api.course_contents(cid)
+        for item in client.files_in(contents) + client.html_links_in(contents):
+            if item["moodle_id"] not in known:
+                gaps.append(f"archivo sin indexar: {item['filename']} ({item['section']})")
+        for sec in contents:
+            for m in sec.get("modules", []):
+                kind = m.get("modname")
+                if not m.get("uservisible", True):
+                    continue
+                if kind not in CAPTURED_TYPES:
+                    gaps.append(f"actividad no leída ({kind}): {m.get('name')} · cmid {m['id']}")
+                elif kind == "label" and reader.text(m.get("description")) \
+                        and f"label:{m['id']}" not in known:
+                    gaps.append(f"texto del curso sin guardar: cmid {m['id']}")
+                elif kind == "page" and f"page:{m['id']}" not in known:
+                    gaps.append(f"página sin guardar: {m.get('name')} · cmid {m['id']}")
+        for row in reader.deadlines(code):
+            if row["status"] != "submitted":
+                gaps.append(f"sin entregar en Moodle: {row['name']} · {row['url']}")
+    from udb.domain.sources import health
+    rows = health.report(code)
+    for r in rows:
+        if r["state"] in ("unsupported", "missing", "no-text", "needs-ocr"):
+            gaps.append(f"fuente no legible ({r['state']}): {r['id']} {r.get('title', '')} → {r['fix']}")
+    unread = [r for r in rows if r["state"] == "images"]
+    if unread:
+        gaps.append(f"{len(unread)} fuentes con figuras sin leer (udb sources fix {code})")
+    pending = [g for g in catalog.load() if g["subject"] == code and g["status"] == "pending"]
+    if pending:
+        gaps.append(f"{len(pending)} grabaciones o videos pendientes (udb recording board {code})")
+    return gaps
+
+
 def sync_classroom(code: str) -> dict:
     """What the teacher wrote in Moodle, as citable sources: course pages, assignment
     instructions (and their attachments), forum posts by teachers and private messages
@@ -145,7 +225,8 @@ def sync_classroom(code: str) -> dict:
     with client.connect() as api:
         base = api.base
         teachers = {t["name"] for t in reader.teachers(api, str(cid))}
-        sections = {m["id"]: sec.get("name", "") for sec in api.course_contents(cid)
+        contents = api.course_contents(cid)
+        sections = {m["id"]: sec.get("name", "") for sec in contents
                     for m in sec.get("modules", [])}
 
         def number(name: str, cmid: int | None) -> int | None:
@@ -160,6 +241,25 @@ def sync_classroom(code: str) -> dict:
                           [reader.text(page.get("intro")), reader.text(page.get("content"))])
             keep(path, f"page:{cmid}", page["name"], f"{base}/mod/page/view.php?id={cmid}",
                  number(page["name"], cmid))
+
+        for sec in contents:
+            for m in sec.get("modules", []):
+                if m.get("modname") != "label" or not m.get("uservisible", True):
+                    continue
+                body = reader.text(m.get("description"))
+                if not body:
+                    continue
+                title = f"{sec.get('name', '')}: {body.splitlines()[0][:60]}".strip(": ")
+                path = _write(tmp, f"label-{m['id']}", title,
+                              [f"Texto del curso · {sec.get('name', '')}"], [body])
+                keep(path, f"label:{m['id']}", title, f"{base}/course/view.php?id={cid}",
+                     number(title, m["id"]))
+
+        links = _course_links(contents)
+        if links:
+            path = _write(tmp, f"links-{cid}", "Enlaces del curso", ["Todos los enlaces del curso"],
+                          [f"- {name} · {sec}: {url}" for sec, name, url in links])
+            keep(path, f"links:{cid}", "Enlaces del curso", f"{base}/course/view.php?id={cid}", None)
 
         data = api.call("mod_assign_get_assignments", **{"courseids[0]": cid})
         for a in [a for c in data.get("courses", []) for a in c.get("assignments", [])]:

@@ -57,6 +57,7 @@ def register(app: typer.Typer) -> None:
             [s["code"] for s in paths.load_subjects() if s.get("moodle_course_id")]
         if not codes:
             die("No subject has moodle_course_id in config/subjects.yaml.")
+        report = {}
         for code in codes:
             if len(codes) > 1:
                 console.print(f"\n[bold]{code}[/bold]")
@@ -73,6 +74,20 @@ def register(app: typer.Typer) -> None:
                 console.print(f"[yellow]~[/yellow] {line}  (new version; the old one is superseded)")
             console.print(f"Teacher's words in Moodle: {len(words['new'])} new, "
                           f"{len(words['updated'])} updated, {words['same']} unchanged.")
+            from udb.integrations.media import catalog
+            before = len(catalog.load())
+            guarded(catalog.discover, code)
+            videos = guarded(catalog.discover_youtube, code)
+            console.print(f"Recordings and videos: {len(videos) - before} new "
+                          f"(download them with: udb recording process <id>).")
+            gaps = guarded(ms.audit, code)
+            report[code] = gaps
+            for gap in gaps:
+                console.print(f"[yellow]![/yellow] {gap}")
+            console.print("[green]Nothing missing from Moodle.[/green]" if not gaps else
+                          f"[yellow]{len(gaps)} item(s) did not reach the vault or need you.[/yellow]")
+        if not dry_run and not subject:
+            ms.stamp(report)
 
     @app.command()
     def assignments(subject: str = typer.Argument(None),

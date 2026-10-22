@@ -21,6 +21,7 @@ from udb.domain.text.normalize import normalize
 from udb.integrations.moodle import client
 
 WORKERS = 6
+LABEL_CHARS = 6000   # a label can hold a whole calendar of meetings, with links
 TEACHER_ROLES = {"editingteacher", "teacher"}
 GROUP_RE = re.compile(r"grupo|equipo|conform|formaci")
 Api = client.MoodleApi
@@ -40,6 +41,11 @@ def text(html: str | None) -> str:
     soup = BeautifulSoup(re.sub(r"\s*\r?\n\s*", " ", html), "html.parser")
     for br in soup.find_all("br"):
         br.replace_with("\n")
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        label = a.get_text(" ", strip=True)
+        if href.startswith(("http://", "https://")) and href != label:
+            a.replace_with(f"{label} ({href})" if label else href)
     for li in soup.find_all("li"):
         li.insert_before("- ")
     for tag in soup.find_all(BLOCKS):
@@ -146,7 +152,7 @@ def outline(api: Api, cid: int, section: str = "") -> list[dict]:
             if files and m.get("modname") in ("resource", "folder"):
                 entry["files"] = _files(files)
             if m.get("modname") == "label":
-                entry["text"] = text(m.get("description"))[:600]
+                entry["text"] = text(m.get("description"))[:LABEL_CHARS]
             elif m.get("modname") == "url" and m.get("contents"):
                 entry["url"] = m["contents"][0].get("fileurl")
             mods.append(entry)

@@ -159,14 +159,43 @@ def run(event: str) -> int:
     return 0
 
 
+SYNC_TIMEOUT = 150   # seconds; a full sync takes about 35
+
+
 def session_start() -> int:
-    """Build the search index when a fresh clone (cloud session) has none."""
+    """Build the search index when a fresh clone (cloud session) has none, then sync the
+    classroom: every session starts with Moodle up to date and says what was left out."""
+    import os
+    import shutil
+    import subprocess
+
     from udb.domain.sources import index
 
     try:
         if index.is_empty():
             counts = index.reindex_all()
             print(f"udb: search index built ({sum(counts.values())} chunks).")
+        if os.environ.get("CLAUDE_CODE_REMOTE") == "true":
+            return 0
+        from udb.config.paths import index_dir, load_subjects
+        from udb.integrations.moodle import sync as ms
+
+        exe = shutil.which("udb")
+        if not exe or not any(s.get("moodle_course_id") for s in load_subjects()):
+            return 0
+        try:
+            with (index_dir() / "sync.log").open("w", encoding="utf-8") as log:
+                done = subprocess.run([exe, "sync"], stdout=log, stderr=subprocess.STDOUT,
+                                      stdin=subprocess.DEVNULL, timeout=SYNC_TIMEOUT)
+            ok = done.returncode == 0
+        except subprocess.TimeoutExpired:
+            ok = False
+        if not ok:
+            print("udb: Moodle sync FAILED or timed out (see index/sync.log). Say so to the "
+                  "student; do not assume the vault is up to date.")
+            return 0
+        gaps = sum(len(v) for v in ms.last_sync().get("gaps", {}).values())
+        print(f"udb: Moodle synced. {gaps} item(s) left out (see `udb sync` or index/sync.log).")
     except settings.HomeNotFound:
         pass
     return 0
