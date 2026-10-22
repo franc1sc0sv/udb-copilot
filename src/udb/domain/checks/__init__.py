@@ -1,5 +1,6 @@
 """Model-free checks over the vault. `udb verify` and the write hook call these."""
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,12 @@ def check_file(path: Path) -> list[Finding]:
     if path.suffix == ".md":
         findings += citations.check_paths([path]) + clarity.check_paths([path])
     findings += exercises.check_path(path)
+    # A class note is also checked against its class: topics and every source used.
+    m = re.match(r"(\d+)", path.parent.name)
+    if path.name == "class.md" and path.parent.parent.name == "classes" and m:
+        code, number = path.parent.parent.parent.name, int(m.group(1))
+        findings += coverage.check_class(code, number, path) + \
+            coverage.check_material(code, number, path)
     return findings
 
 

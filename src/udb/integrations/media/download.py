@@ -1,8 +1,8 @@
-"""Download a recording with yt-dlp, using the browser's Microsoft session.
+"""Download a recording with yt-dlp (YouTube and other public links).
 
-Local only: it needs a browser where you are logged in to Microsoft (or an
-exported cookies.txt). When that fails, download the video by hand and
-`udb recording attach` it.
+Teams recordings are view-only for students: read them with Claude in Chrome
+(`udb recording stream-js`). A video you got some other way is linked with
+`udb recording attach`.
 """
 import shutil
 import subprocess
@@ -16,7 +16,7 @@ from udb.integrations.media import catalog
 VIDEO_SUFFIXES = (".mp4", ".mkv", ".webm", ".m4a", ".mov", ".mp3")
 
 
-def download(rid: str, browser: str | None = None, dest: Path | None = None) -> Path:
+def download(rid: str, dest: Path | None = None) -> Path:
     g = catalog.find(rid)
     cfg = catalog.config()
     dest = Path(dest or cfg.get("downloads") or (index_dir() / "downloads"))
@@ -24,31 +24,16 @@ def download(rid: str, browser: str | None = None, dest: Path | None = None) -> 
     if not shutil.which("yt-dlp"):
         raise RuntimeError("yt-dlp is missing. Install it with: uv tool install yt-dlp")
 
-    # Windows encrypts Edge and Chrome cookies (App-Bound Encryption), so
-    # --cookies-from-browser often fails there. An exported cookies.txt works.
-    cookies = cfg.get("cookies_file")
-    browser = browser or cfg.get("browser") or "chrome"
-    if "youtube.com" in g["url"] or "youtu.be" in g["url"]:
-        auth = []  # public course videos: no session needed
-    elif cookies and Path(cookies).expanduser().exists():
-        auth = ["--cookies", str(Path(cookies).expanduser())]
-    else:
-        auth = ["--cookies-from-browser", browser]
-
     template = str(dest / f"{g['id']}-{slugify(g['title'])}.%(ext)s")
-    cmd = ["yt-dlp", *auth, "--no-playlist", "--newline",
+    cmd = ["yt-dlp", "--no-playlist", "--newline",
            "-f", cfg.get("format") or "bv*+ba/b", "-o", template, g["url"]]
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0:
-        output = proc.stderr or proc.stdout or ""
-        if "cookie database" in output or "could not find" in output.lower():
-            raise RuntimeError(
-                f"cannot read {browser} cookies. Either export cookies.txt and set "
-                f"cookies_file in config/recordings.yaml, or download the video by hand and "
-                f"run: udb recording attach {g['id']} <file.mp4>")
-        tail = "\n  ".join(output.strip().splitlines()[-4:])
-        raise RuntimeError(f"yt-dlp failed (usually the Microsoft session):\n  {tail}\n"
-                           f"Fallback: udb recording attach {g['id']} <file.mp4>")
+        tail = "\n  ".join((proc.stderr or proc.stdout or "").strip().splitlines()[-4:])
+        hint = (f"Teams recordings are view-only: udb recording stream-js {g['id']} "
+                "(Claude in Chrome)" if "sharepoint" in g["url"] or "meetingrecap" in g["url"]
+                else f"udb recording attach {g['id']} <file.mp4>")
+        raise RuntimeError(f"yt-dlp failed:\n  {tail}\nInstead: {hint}")
 
     videos = [p for p in sorted(dest.glob(f"{g['id']}-*"), key=lambda p: p.stat().st_mtime)
               if p.suffix.lower() in VIDEO_SUFFIXES]
@@ -66,6 +51,7 @@ def attach(rid: str, file: str | Path) -> dict:
         raise FileNotFoundError(f"{path} does not exist")
     if path.suffix.lower() not in VIDEO_SUFFIXES:
         raise ValueError(f"not a video or audio file: {path.name}")
-    rec = registry.register(g["subject"], path, kind="class", title=g["title"], url=g["url"])
+    rec = registry.register(g["subject"], path, kind="class", title=g["title"], url=g["url"],
+                            class_number=g.get("class"))
     return catalog.update(rid, status="downloaded", source_id=rec["id"], file=str(path),
                           bytes=path.stat().st_size)

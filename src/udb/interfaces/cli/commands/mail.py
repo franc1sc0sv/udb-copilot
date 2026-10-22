@@ -1,4 +1,4 @@
-"""`udb mail ...`: mail accounts (Gmail, Outlook, IMAP)."""
+"""`udb mail ...`: mail accounts (Gmail, IMAP)."""
 import getpass
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +28,7 @@ def accounts():
 
 @mail_app.command("add")
 def add():
-    """Add a mail account step by step (Gmail, Outlook or IMAP) and test it."""
+    """Add a mail account step by step (Gmail or IMAP) and test it."""
     from udb.interfaces.cli.commands.wizard import mail_add
     guarded(mail_add)
 
@@ -37,10 +37,7 @@ def add():
 def login(account_id: str,
           client_secret: Path = typer.Option(None, help="Google OAuth client JSON; default: the "
                                              "Workspace MCP's app"),
-          scope: list[str] = typer.Option([], help="Extra Google scopes: calendar.read, drive"),
-          start: bool = typer.Option(False, "--start", help="Outlook: only print the sign-in link"),
-          finish: str = typer.Option("", "--finish", help="Outlook: the localhost URL you ended on"),
-          device: bool = typer.Option(False, "--device", help="Outlook: device-code flow")):
+          scope: list[str] = typer.Option([], help="Extra Google scopes: calendar.read, drive")):
     """Store credentials for one account (outside the repo, mode 600)."""
     from udb.integrations.mail import base
     acc = guarded(base.get_account, account_id)
@@ -53,16 +50,6 @@ def login(account_id: str,
             scopes.append("drive")
         creds = guarded(oauth.login, scopes, client_secret)
         oauth.write_creds(base.secret_path(acc), creds)
-    elif kind == "outlook":
-        from udb.integrations.mail import outlook
-        if start:
-            console.print(guarded(outlook.login_start, acc), soft_wrap=True)
-            console.print(f"Then: udb mail login {account_id} --finish '<localhost URL>'")
-            return
-        if finish:
-            guarded(outlook.login_finish, acc, finish)
-        else:
-            guarded(outlook.login, acc, device)
     elif kind == "imap" or acc.get("auth") == "app-password":
         path = base.secret_path(acc)
         path.parent.mkdir(parents=True, exist_ok=True)

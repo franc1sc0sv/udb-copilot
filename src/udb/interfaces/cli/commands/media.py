@@ -1,8 +1,9 @@
-"""`udb recording ...` and `udb browser login`: class videos into citable text.
+"""`udb recording ...`: class videos into citable text.
 
 Downloadable videos (YouTube embeds, shared files): `process` runs download,
-Whisper, board stills, board reading and the radar. View-only Teams recordings:
-`stream` reads Stream's transcript and takes board stills in udb's own Chrome.
+Whisper, board stills, board reading and the radar. View-only Teams recordings are
+read in the student's own Chrome with Claude in Chrome: `url`, `stream-js` and
+`import-stream`.
 """
 from pathlib import Path
 
@@ -13,7 +14,6 @@ from udb.domain.notes import anchors
 from udb.interfaces.cli.common import MARK, console, die, guarded
 
 app = typer.Typer(help="Class recordings: catalog, transcripts, board stills, radar.")
-browser_app = typer.Typer(help="udb's own Chrome (Stream recordings).")
 
 
 def _found(recording_id: str) -> dict:
@@ -51,10 +51,10 @@ def discover(subject: str = typer.Argument(None)):
 
 
 @app.command()
-def download(recording_id: str, browser: str = typer.Option(None)):
-    """Download a video (YouTube, or a shared file your Microsoft session can download)."""
+def download(recording_id: str):
+    """Download a video (YouTube or another public link)."""
     from udb.integrations.media import download as dl
-    path = guarded(dl.download, recording_id, browser=browser)
+    path = guarded(dl.download, recording_id)
     console.print(f"[green]{path.name}[/green] ({path.stat().st_size / 1e6:.0f} MB)")
 
 
@@ -129,54 +129,26 @@ def _read_and_finish(recording_id: str) -> None:
 
 
 @app.command()
-def process(recording_id: str, browser: str = typer.Option(None)):
+def process(recording_id: str):
     """A downloadable video end to end: download, Whisper, board stills, board reading,
     index and radar."""
     from udb.integrations.media import catalog
     if not guarded(catalog.find, recording_id).get("file"):
-        download(recording_id, browser=browser)
+        download(recording_id)
     transcribe(recording_id, model=None)
     frames(recording_id)
     _read_and_finish(recording_id)
 
 
-@app.command("stream")
-def stream_cmd(recording_id: str,
-               boards: bool = typer.Option(True, help="Also take stills of the boards")):
-    """A view-only Teams recording end to end in udb's own Chrome: transcript, board stills
-    (dense where an exercise is solved), board reading, index and radar."""
-    from udb.integrations.media import browser, catalog, stream
-    g = guarded(catalog.find, recording_id)
-    console.print(f"Opening {g['id']} in udb's Chrome…")
-    transcript, stills = guarded(browser.read_stream, g["url"], boards,
-                                 on_transcript=lambda t: console.print(
-                                     f"  transcript: {len(t['entries'])} entries"))
-    g = guarded(stream.import_transcript_data, recording_id, transcript)
-    console.print(f"[green]{g['segments']} segments → {g['source_id']} ({g.get('date')})[/green]")
-    if stills:
-        g = guarded(stream.import_boards_data, recording_id, stills)
-        console.print(f"[green]{g['frames']} board stills[/green]")
-    _read_and_finish(recording_id)
+# Teams recordings, in Claude in Chrome: open `url`, run the `stream-js` script on that tab,
+# then import the JSON it saves to Downloads.
 
-
-@app.command("stream-all")
-def stream_all(subject: str = typer.Argument(None),
-               redo: bool = typer.Option(False, help="Also recordings already transcribed")):
-    """Every Teams recording of a subject (or all) through `udb recording stream`."""
+@app.command()
+def url(recording_id: str):
+    """The address that opens the recording in Stream's player (for Claude in Chrome)."""
     from udb.integrations.media import catalog
-    todo = [g for g in catalog.load() if "-YT-" not in g["id"]
-            and (not subject or g["subject"] == subject.upper())
-            and (redo or not g.get("source_id"))]
-    console.print(f"{len(todo)} recordings")
-    for g in todo:
-        try:
-            stream_cmd(g["id"], boards=True)
-        except (SystemExit, typer.Exit):
-            console.print(f"[red]{g['id']} failed; continuing[/red]")
+    print(catalog.player_url(guarded(catalog.find, recording_id)["url"]))
 
-
-# By hand, in Claude in Chrome: print a script, run it on the Stream page, import the JSON
-# it saves to Downloads. The same JS as `stream`, for when udb's Chrome cannot sign in.
 
 def _downloaded(recording_id: str, kind: str) -> Path:
     stem = f"udb-{kind}-{recording_id.upper()}"
@@ -210,11 +182,3 @@ def import_stream(recording_id: str, file: Path = typer.Argument(None),
     console.print(f"[green]{g['segments']} segments from Stream → {g['source_id']} "
                   f"({g['title']}, {g.get('date') or 'no date'})[/green]")
     radar(recording_id, minimum=5)
-
-
-@browser_app.command("login")
-def browser_login():
-    """Open udb's Chrome once to sign in to Microsoft (the session is kept)."""
-    from udb.integrations.media import browser
-    guarded(browser.login)
-    console.print("[green]Signed in. udb recording stream <ID> now runs without you.[/green]")

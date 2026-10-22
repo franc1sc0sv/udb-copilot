@@ -4,6 +4,7 @@ Auth is a mobile web-service token, created once from your username and
 password (`udb moodle login`) and stored outside the repo with mode 600. In
 cloud sessions set `MOODLE_TOKEN` instead. The password is never stored.
 """
+import logging
 import os
 import re
 import time
@@ -13,6 +14,9 @@ from typing import Any
 import httpx
 
 from udb.config import settings
+
+# httpx logs every request URL at INFO, and file URLs carry the token: never log them.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 READ_RE = re.compile(r"^[a-z0-9]+_[a-z0-9_]*?(get|search)_")
 NEVER = ("autologin", "tokens", "export_token")

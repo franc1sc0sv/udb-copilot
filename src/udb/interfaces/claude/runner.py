@@ -13,6 +13,7 @@ from udb.interfaces.mcp.vault import TOOL_NAMES
 
 BASE_TOOLS = ["Write", "Edit", "Glob", "TodoWrite", "Agent", "WebSearch", "AskUserQuestion"]
 DEFAULT_MODEL = "opus"
+LANGUAGES = {"es": "Spanish", "en": "English"}
 
 
 def _sdk():
@@ -34,10 +35,14 @@ def options(model: str = DEFAULT_MODEL, budget: float = 2.0, resume: str | None 
               for name, spec in prompts.AGENTS.items()}
     return sdk.ClaudeAgentOptions(
         cwd=str(home), model=model,
-        system_prompt={"type": "preset", "preset": "claude_code", "append": prompts.RULES},
+        system_prompt={"type": "preset", "preset": "claude_code", "append": prompts.RULES + (
+            "\n\nThe student reads your messages in "
+            f"{LANGUAGES.get(settings.get().language, settings.get().language)}: "
+            "write every message and the final report in that language.")},
         setting_sources=["project"],
         mcp_servers={"vault": {"type": "stdio", "command": sys.executable,
-                               "args": ["-m", "udb.interfaces.mcp.vault"], "env": {"UDB_HOME": str(home)}}},
+                               "args": ["-m", "udb.interfaces.mcp.vault"],
+                               "env": {"UDB_HOME": str(home)}}},
         agents=agents,
         allowed_tools=BASE_TOOLS + [f"mcp__vault__{t}" for t in TOOL_NAMES],
         disallowed_tools=["WebFetch"], permission_mode=permission_mode,

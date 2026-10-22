@@ -238,11 +238,17 @@ def fetch_images(code: str, source_id: str, fetch=None, limit: int | None = None
     folder = images_dir(code, source_id)
     folder.mkdir(parents=True, exist_ok=True)
     done = failed = 0
+    # Course pages downloaded from Moodle have no URL of their own; their relative images
+    # ("../resource/assets/...") live under the same root as the page's absolute ones.
+    roots = [s.split("/resource/")[0] for i in meta["images"]
+             if re.match(r"https?://", s := i.get("src", "")) and "/resource/" in s]
     for img in meta["images"][:limit]:
         if img.get("status") == "done":
             continue
         src = img.get("src", "")
         url = urljoin(rec.get("url") or "", src) if not re.match(r"https?://", src) else src
+        if not re.match(r"https?://", url) and roots and "resource/" in src:
+            url = f"{roots[0]}/resource/{src.split('resource/', 1)[1]}"
         if not re.match(r"https?://", url):
             img.update(status="failed", why="relative link and the source has no URL")
             failed += 1

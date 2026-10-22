@@ -4,7 +4,7 @@ Accounts live in `config/mail.yaml`:
 
     accounts:
       - id: personal
-        provider: gmail          # gmail | outlook | imap
+        provider: gmail          # gmail | imap
         address: me@gmail.com
         calendar: true           # also read Google Calendar from this account
     filters:
@@ -123,9 +123,6 @@ def provider_for(account: dict) -> Provider:
     if kind == "gmail":
         from udb.integrations.mail.gmail import GmailProvider
         return GmailProvider(account)
-    if kind == "outlook":
-        from udb.integrations.mail.outlook import OutlookProvider
-        return OutlookProvider(account)
     if kind == "imap":
         from udb.integrations.mail.imap import ImapProvider
         return ImapProvider(account)

@@ -18,7 +18,7 @@ from udb.interfaces.claude import prompts
 START, END = "<!-- udb:start -->", "<!-- udb:end -->"
 MANAGED = ".udb-managed"
 
-INSTALL_SPEC = "udb-copilot[outlook] @ git+https://github.com/franc1sc0sv/udb-copilot"
+INSTALL_SPEC = "udb-copilot @ git+https://github.com/franc1sc0sv/udb-copilot"
 PATH_FIX = 'export PATH="$HOME/.local/bin:$PATH"; '
 HOOK_PRE = (PATH_FIX + "command -v udb >/dev/null 2>&1 || { echo 'udb is not installed: "
             "blocking for safety' >&2; exit 2; }; udb hook pre")
@@ -51,11 +51,6 @@ accounts: []
 #   address: you@gmail.com
 #   calendar: true
 #   send: true
-# - id: udb
-#   provider: outlook
-#   address: you@udb.edu.sv
-#   tenant: organizations
-#   client_id: <entra-app-client-id>   # docs/outlook.md
 filters:
   - name: teachers
     from_domains: [udb.edu.sv]
@@ -209,7 +204,7 @@ def init(folder: Path) -> Path:
         (folder / sub).mkdir(exist_ok=True)
     examples = {"subjects.yaml": SUBJECTS_EXAMPLE, "mail.yaml": MAIL_EXAMPLE,
                 "agenda.yaml": {"passing_grade": 6.0, "subjects": {}},
-                "recordings.yaml": {"browser": "chrome", "model": "large", "quality": "max"}}
+                "recordings.yaml": {"model": "large", "quality": "max"}}
     for name, data in examples.items():
         path = folder / "config" / name
         if not path.exists():

@@ -130,6 +130,7 @@ def register(app: typer.Typer) -> None:
         rows = guarded(sources.report, subject)
         shown = rows if all_ else [r for r in rows if r["state"] not in ("ok", "transcript")]
         table = T("source", "type", "pages", "chars", "imgs read", "embeds", "state", "fix")
+        table.columns[0].no_wrap = True
         for r in shown:
             colour = {"ok": "green", "transcript": "green"}.get(r["state"], "yellow")
             table.add_row(r["id"], r["type"], str(r["pages"]), str(r["chars"]),

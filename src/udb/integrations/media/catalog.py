@@ -1,13 +1,15 @@
 """Class recordings: find the links in Moodle and keep a catalog.
 
-Recordings live in each teacher's OneDrive, behind the Microsoft login. This
-module only finds and tracks them (`index/recordings.json`); `download`,
+Teams recordings live in each teacher's OneDrive, behind the Microsoft login, and
+are read with Claude in Chrome; YouTube videos are downloaded. This module only
+finds and tracks them (`index/recordings.json`); `download`,
 `asr`, `frames` and `radar` do the rest.
 """
 import html as _html
 import json
 import re
 from datetime import date, datetime
+from urllib.parse import parse_qs, urlparse
 
 from udb.config.paths import index_dir, load_subjects, load_yaml
 from udb.domain.sources import index
@@ -77,6 +79,13 @@ def is_poor_title(text: str) -> bool:
     """True when the title does not tell this recording from the others."""
     plain = strip_accents(text.lower()).strip(" .-|")
     return not plain or plain in EMPTY_TITLES or len(plain) < 4 or bool(AUTO_RE.match(plain))
+
+
+def player_url(url: str) -> str:
+    """Teams "meeting recap" links open a launcher that asks for the desktop app; their
+    `sitePath` is the SharePoint link of the same recording, which opens Stream's player."""
+    query = parse_qs(urlparse(url).query)
+    return query["sitePath"][0] if "meetingrecap" in url and query.get("sitePath") else url
 
 
 def url_key(url: str) -> str:

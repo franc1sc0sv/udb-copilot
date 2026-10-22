@@ -21,10 +21,10 @@ every claim is cited and every exercise follows your teacher's method.
 | **Ask from your phone** | "What's pending in IRD?", "Explain class 3 of AVM" — in a Claude Code cloud session. |
 | **Cited notes** | Class and concept notes in plain Spanish: one citation per paragraph, quoting the passage that backs it, checked without a model; every source of the class must be used. |
 | **Your whole classroom** | A read-only Moodle MCP: grades, forums, private messages, notifications, quizzes, assignment instructions. Nothing can submit or post. |
-| **Class videos** | YouTube embeds and downloadable recordings: Whisper on your GPU, a still of every complete board read by a vision model, citable by minute and board. View-only Teams recordings: Stream's transcript and the boards, read in udb's own Chrome. |
+| **Class videos** | YouTube embeds and downloadable recordings: Whisper on your GPU, a still of every complete board read by a vision model, citable by minute and board. View-only Teams recordings: Stream's transcript and the boards, read in your own Chrome with Claude in Chrome. |
 | **The teacher's method** | Exercises are solved only with the procedure the teacher taught, step by step, as HTML cards with formulas rendered offline. |
 | **Status board** | One row per class: material, recording, explanation, method, exercises, lesson, citation errors, next step. |
-| **Many mail accounts** | Gmail, Outlook (university or personal) and any IMAP server, declared in one file. |
+| **Many mail accounts** | Gmail and any IMAP server, declared in one file. |
 | **Reads everything** | Scanned PDFs get OCR; the images of the course pages are downloaded and read; HTML pages are split by section, so a citation points at "Inverso multiplicativo", not at a 20-page site. `udb sources` says what is still missing. |
 | **Inline views** | Pending work, class status, agenda and tasks show up as a small view inside the Claude chat, built from real data. |
 | **Never skips the classroom** | Any question about tasks, exams or deadlines gets the real Moodle state injected before Claude answers. |
@@ -45,7 +45,7 @@ flowchart LR
   end
   engine["udb (this repo)<br/>CLI + MCP server + skills"]
   moodle[(UDB Moodle)]
-  mail[(Gmail / Outlook / IMAP)]
+  mail[(Gmail / IMAP)]
   phone --> engine
   laptop --> engine
   engine --> data
@@ -68,7 +68,7 @@ You need Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), git, and
 formulas.
 
 ```bash
-uv tool install "udb-copilot[outlook,agent] @ git+https://github.com/franc1sc0sv/udb-copilot"
+uv tool install "udb-copilot[agent] @ git+https://github.com/franc1sc0sv/udb-copilot"
 udb init ~/udb-vault          # creates the data home and wires Claude Code into it
 cd ~/udb-vault
 udb setup                     # Moodle login, pick your courses, add mail accounts
@@ -113,11 +113,6 @@ accounts:
     auth: app-password      # or OAuth (omit this line) to also read Calendar and Drive
     address: you@gmail.com
     send: true              # can send you the daily summary
-  - id: udb
-    provider: outlook       # Microsoft Graph; see docs/outlook.md
-    address: you@udb.edu.sv
-    tenant: organizations
-    client_id: <your app registration>
   - id: other
     provider: imap          # any IMAP server with an app password
     host: imap.example.com
@@ -135,7 +130,7 @@ them from the variable named in `credentials_env`.
 
 | Area | Commands |
 |---|---|
-| Setup | `udb init`, `udb setup`, `udb setup claude`, `udb setup mathjax`, `udb cloud secrets/check`, `udb browser login` |
+| Setup | `udb init`, `udb setup`, `udb setup claude`, `udb setup mathjax`, `udb cloud secrets/check` |
 | Sources | `udb sources`, `udb sources fix`, `udb sources classes`, `udb verify --fix`, `udb verify --deep` |
 | Views | `udb view digest/status/agenda/tasks` (what Claude shows inline) |
 | Classroom | `udb moodle login/courses/mcp`, `udb sync` (files + the teacher's words in Moodle), `udb assignments`, `udb assignment fetch/submission` |
@@ -143,7 +138,7 @@ them from the variable named in `credentials_env`.
 | Vault | `udb ingest`, `udb reindex`, `udb verify`, `udb coverage`, `udb figures`, `udb diagrams` |
 | Writing (with Claude) | `udb class new/write/lesson`, `udb method new/extract/list`, `udb note new`, `udb exercise`, `udb study`, `udb explain`, `udb ask` |
 | Mail and Drive | `udb mail add/accounts/login/search/attachments`, `udb drive upload/replace/download/trash` |
-| Recordings (local) | `udb recording discover/board/process/stream/stream-all/radar` (and the steps: `download/attach/transcribe/frames/read-boards`) |
+| Recordings (local) | `udb recording discover/board/process/radar` (steps: `download/attach/transcribe/frames/read-boards`); Teams with Claude in Chrome: `udb recording url/stream-js/import-stream` |
 
 Run `udb <command> --help` for the details.
 
@@ -190,11 +185,9 @@ index/                            generated: search index, boards (not committed
 
 | Extra | For |
 |---|---|
-| `outlook` | Outlook / Microsoft 365 mail (msal) |
 | `agent` | `udb verify --deep`, `udb class write`, `udb study` and other commands that run Claude |
 | `asr` | Transcribing class videos with Whisper on an NVIDIA GPU (CUDA 12.8+) |
 | `vision` | Reading board stills with Qwen3-VL on the GPU |
-| `browser` | udb's own Chrome for view-only Teams recordings (Playwright) |
 
 OCR for scanned PDFs and figures is part of the base install.
 

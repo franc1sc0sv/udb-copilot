@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -441,7 +441,7 @@ def download(api: Api, url: str, dest_dir: Path) -> Path:
         raise client.MoodleError("only Moodle file links (pluginfile.php) can be downloaded")
     url = url.replace("/pluginfile.php", "/webservice/pluginfile.php", 1) \
         if "/webservice/pluginfile.php" not in url else url
-    name = re.sub(r"[^\w.\-]+", "_", Path(parsed.path).name) or "file"
+    name = re.sub(r"[^\w.\-]+", "_", unquote(Path(parsed.path).name)) or "file"
     return api.download(url.split("?")[0], dest_dir / name)
 
 

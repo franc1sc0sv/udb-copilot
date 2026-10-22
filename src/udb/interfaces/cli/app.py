@@ -12,7 +12,6 @@ classroom.register(app)
 app.add_typer(mail.mail_app, name="mail")
 app.add_typer(drive.drive_app, name="drive")
 app.add_typer(media.app, name="recording")
-app.add_typer(media.browser_app, name="browser")
 app.add_typer(cloud.app, name="cloud")
 
 

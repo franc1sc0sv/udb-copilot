@@ -12,8 +12,8 @@ video capture). What the student can see while watching is used instead:
   teacher solving an exercise and sparse elsewhere. `import_boards` stores them
   as the recording's frames, read later by `vision.read_frames`.
 
-Both run in udb's own browser (`browser.py`, one login) or, by hand, in Claude in
-Chrome through `extract_js` / `boards_js`, which save the result to Downloads.
+Both run in Claude in Chrome, in the student's own signed-in Chrome, through
+`extract_js` / `boards_js`, which save the result to Downloads.
 """
 import base64
 import json
@@ -206,7 +206,8 @@ def import_transcript_data(rid: str, data: dict) -> dict:
     else:
         tmp = Path(tempfile.mkdtemp(prefix="udb-stream-")) / f"{g['id']}-{slugify(title)}.json"
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
-        rec = registry.register(g["subject"], tmp, kind="class", title=title, url=g["url"])
+        rec = registry.register(g["subject"], tmp, kind="class", title=title, url=g["url"],
+                                class_number=g.get("class"))
     out = index.transcript_file(g["subject"], rec["id"])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"language": "es", "engine": "stream", "quality": "stream",

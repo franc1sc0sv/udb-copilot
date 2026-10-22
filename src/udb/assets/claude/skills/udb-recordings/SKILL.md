@@ -13,13 +13,18 @@ Students cannot download them, and udb does not try to work around that (no stre
 capture). What the student can see is Stream's transcript. Local only, with Claude in
 Chrome and the student's own UDB session:
 
-1. Open the recording URL from the catalog (`index/recordings.json`) in a new tab.
+1. `udb recording url <ID>` prints the address of Stream's player; open it in a new tab.
 2. Open the **Transcripción** panel if it is closed.
 3. `udb recording stream-js <ID>` prints a script; run it with `javascript_tool` on that
    tab. It saves `udb-stream-<ID>.json` to the Downloads folder (text only).
 4. `udb recording import-stream <ID>`: the transcript becomes a citable source with
    `t=` anchors, and the radar runs.
-5. Close the tab.
+5. Boards: `udb recording stream-js <ID> --boards` on the same tab, then
+   `udb recording import-stream <ID> --boards` (stills, board reading on the GPU).
+6. Close the tab.
+
+udb has no Microsoft login of its own: if the tab asks to sign in, the student
+signs in themselves.
 
 If the teacher allows downloads (or shares the file), use the downloadable path below
 instead: Whisper is more accurate than Stream's transcript.

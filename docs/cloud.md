@@ -7,8 +7,8 @@ when it is missing and builds the search index.
 
 What works in the cloud: Moodle, mail, Calendar, Drive, search and citations,
 `udb status`, `udb digest`, agenda, tasks, writing notes and exercises.
-What stays on your computer: downloading recordings (needs your browser's
-Microsoft session), GPU transcription, Packet Tracer.
+What stays on your computer: videos (download, GPU transcription, board
+reading), Teams recordings with Claude in Chrome, Packet Tracer.
 
 ## 1. Environment
 
@@ -21,8 +21,6 @@ www.udbvirtual.edu.sv
 *.googleapis.com
 oauth2.googleapis.com
 accounts.google.com
-login.microsoftonline.com
-graph.microsoft.com
 github.com
 pypi.org
 files.pythonhosted.org
@@ -48,7 +46,7 @@ reachable and OCR works.
 set -e
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
-uv tool install "udb-copilot[outlook] @ git+https://github.com/franc1sc0sv/udb-copilot"
+uv tool install "udb-copilot @ git+https://github.com/franc1sc0sv/udb-copilot"
 udb setup mathjax || true
 ```
 

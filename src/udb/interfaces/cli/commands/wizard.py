@@ -47,8 +47,8 @@ def mail_add() -> dict | None:
     choice = Prompt.ask(
         "Account type\n  1 Gmail (Google login with your OAuth app, works in the cloud)\n"
         "  2 Gmail with an app password (only on this computer)\n"
-        "  3 Outlook: university or personal\n  4 Other (IMAP)\nChoose",
-        choices=["1", "2", "3", "4"], default="1")
+        "  3 Other (IMAP)\nChoose",
+        choices=["1", "2", "3"], default="1")
     address = Prompt.ask("Email address").strip()
     suggested = re.sub(r"[^a-z0-9]+", "-", address.split("@")[0].lower()).strip("-") or "mail"
     account_id = Prompt.ask("Short name for this account", default=suggested)
@@ -70,14 +70,6 @@ def mail_add() -> dict | None:
         scopes += (["calendar.read"] if account["calendar"] else []) + (
             ["drive"] if account["drive"] else [])
         oauth.write_creds(base.secret_path(account), oauth.login(scopes))
-    elif choice == "3":
-        from udb.integrations.mail import outlook
-        university = Confirm.ask("Is it the university account (@udb.edu.sv)?", default=True)
-        account = {"id": account_id, "provider": "outlook", "address": address,
-                   "tenant": "organizations" if university else "consumers",
-                   "client_id": Prompt.ask("App registration client id (see docs/outlook.md)")}
-        console.print("Approve the code on any device, your phone works:")
-        outlook.login(account)
     else:
         account = {"id": account_id, "provider": "imap", "address": address,
                    "host": Prompt.ask("IMAP server", default=f"imap.{address.split('@')[-1]}"),

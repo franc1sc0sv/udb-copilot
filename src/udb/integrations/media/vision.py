@@ -35,12 +35,15 @@ PROMPT = ("Transcribe everything the teacher wrote or showed on this class board
           "diagram, table), describe it after the text in one paragraph starting with 'Figura:'. "
           "For a figure, state only what is drawn: every label, value and unit exactly as written, "
           "what each arrow points to, and which line or axis each angle is measured from. If "
-          "something is not legible, say so instead of guessing. Do not solve or explain anything.")
+          "something is not legible, say so instead of guessing. Do not solve or explain anything. "
+          "If nothing is taught on it (only logos, a title card, an empty slide), answer only: EMPTY")
 CONTEXT = ("\n\nWhat the teacher was saying at this moment (speech-to-text, may contain errors; "
            "use it only to disambiguate what is drawn, never add facts that are not on the "
            "board):\n«{text}»")
 MODEL = FAST
 SPANISH_FUNCS = {"sen": "sen", "tg": "tg", "arcsen": "arcsen", "senh": "senh"}
+# What the model says instead of EMPTY when it ignores the instruction.
+NOTHING_RE = re.compile(r"^\s*(EMPTY\b|no hay (texto|contenido|nada)|la imagen (solo )?muestra solo)", re.I)
 NO_FIGURE_RE = re.compile(r"^\s*Figura:\s*(no hay|ninguna|sin)\b.*$", re.I | re.M)
 
 
@@ -115,7 +118,7 @@ def read_frames(subject: str, source_id: str, only_complete: bool = True,
     reader = Reader(FAST)
     for f in todo:
         text = reader.read(str(folder / f["file"]), said_around(segments, f.get("t")))
-        if is_branding(text):
+        if is_branding(text) or NOTHING_RE.match(text):
             f["kind"], text = "branding", ""
         f["text"], f["reader"] = text, FAST
     reader.close()

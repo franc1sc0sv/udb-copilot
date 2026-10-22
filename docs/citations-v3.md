@@ -165,44 +165,13 @@ Changes:
 6. **OCR always on.** `ocr` joins the default install (local and cloud), and
    `udb cloud check` reports whether OCR works.
 
-## 8. Microsoft 365 (UDB account)
+## 8. Microsoft 365 (UDB account): dropped
 
-Class recordings live on the teachers' OneDrive/SharePoint (Stream), and the
-UDB mailbox is Outlook. Facts checked on 2026-10-20:
-
-- The UDB tenant (`f9afe020-…`) is **Managed** (cloud identities, no ADFS):
-  the Microsoft sign-in page handles the login directly.
-- Reading a shared link (`GET /shares/{u!base64url}/driveItem/content`) needs
-  delegated `Files.ReadWrite` at least (Graph docs). Plain `Files.ReadWrite` and
-  `Mail.Read` are user-consentable by default; `*.All` and `Sites.*` need an
-  admin. Whether UDB restricts user consent (e.g. verified publishers only) is
-  **unknown until the first login**. If it does, the student sees "Need admin
-  approval" and can request it; the fallback is downloading by hand.
-- Stream transcripts have no documented Graph endpoint. An internal
-  `_api/v2.1/…/media/transcripts` route is reported to work; udb may try it
-  as a bonus, never rely on it.
-
-Design, mirroring Google:
-
-- **One Entra app owned by the student** (multi-tenant + personal accounts,
-  public client). Login is OAuth **authorization code + PKCE**: on the PC the
-  browser returns to `http://localhost`; from a phone or the cloud the student
-  pastes the final URL back (the rclone/gcloud "no browser" pattern). Device
-  code is only a fallback: since 2025 Microsoft ships a managed Conditional
-  Access policy that blocks it in tenants that never used it.
-- **Where to register it:** first try inside the UDB tenant with the student
-  account (an app registered in the tenant passes even the stricter consent
-  policies); otherwise a free Entra directory of the student's own. Scopes: `User.Read`, `Mail.Read`, `Files.ReadWrite`,
-  `offline_access`. udb never writes files; `ReadWrite` is only what `/shares`
-  demands.
-- **udb owns the login** (MSAL cache under `secrets_dir`, packed into
-  `UDB_SECRETS`), so it works in the cloud too. Several Microsoft accounts are
-  fine, like Gmail.
-- **Optional Microsoft 365 MCP**: Softeria `ms-365-mcp-server` (open source,
-  `--org-mode --read-only`, presets for mail, calendar, files, Teams) launched
-  by `udb ms365-mcp`, which passes a fresh access token from udb's cache
-  (`MS365_MCP_OAUTH_TOKEN`) so there is one login, not two. Off unless
-  `mcp.ms365: true`.
+udb has no Microsoft login. The UDB tenant needs IT consent for an own app, so
+Outlook mail and udb's own signed-in Chrome were removed (2026-10-21). Teams
+recordings are read in the student's own Chrome with Claude in Chrome
+(`udb recording url`, `stream-js`, `import-stream`); university mail can be
+forwarded to Gmail.
 
 ## 9. Videos: the media pipeline (local GPU)
 

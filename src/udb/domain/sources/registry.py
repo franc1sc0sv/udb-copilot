@@ -135,12 +135,15 @@ def guess_class(title: str | None, filename: str | None) -> int | None:
 
 def assign_classes(code: str) -> list[tuple[str, int]]:
     """Fill `class` where it is missing; a class set by hand is never changed."""
+    from udb.integrations.media import catalog
     records = read_all(code)
+    videos = {g["source_id"]: g.get("class") for g in catalog.load() if g.get("source_id")}
     changed = []
     for r in records:
-        if r.get("class") or r.get("kind") not in ("course", "exercise"):
+        if r.get("class") or r.get("kind") not in ("course", "exercise", "class"):
             continue
-        n = guess_class(r.get("title"), r.get("original_name"))
+        n = videos.get(r["id"]) if r["kind"] == "class" else \
+            guess_class(r.get("title"), r.get("original_name"))
         if n:
             r["class"] = n
             changed.append((r["id"], n))

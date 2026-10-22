@@ -14,10 +14,10 @@ src/udb/
     planning/          agenda, digest, status, tasks
   integrations/        everything that talks to the outside
     moodle/            client (transport, read-only guard), reader, sync
-    mail/              base, gmail, outlook, imap
+    mail/              base, gmail, imap
     google/            oauth, calendar, drive
     media/             catalog, download, asr (Whisper), frames (board stills),
-                       vision (Qwen3-VL), stream (Teams), browser, radar
+                       vision (Qwen3-VL), stream (Teams, via Claude in Chrome), radar
   interfaces/          how udb is used
     cli/               app.py (the `udb` command), common.py, commands/ (one module per area)
     mcp/               vault.py (the `vault` MCP), moodle.py (the `moodle` MCP)
@@ -42,7 +42,7 @@ src/udb/
   `domain/text/lang.py`.
 - **Moodle is read only.** `integrations.moodle.client` refuses any web-service call that is
   not a pure read, for every caller.
-- **Heavy dependencies are extras** (`asr`, `vision`, `browser`, `agent`, `outlook`),
+- **Heavy dependencies are extras** (`asr`, `vision`, `agent`),
   so a cloud session installs fast. OCR is in the base install.
 - **Fail closed.** The pre-tool hook blocks when `udb` is missing.
 - **No test suite.** Changes are checked by running `udb` against a real vault.

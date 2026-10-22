@@ -47,22 +47,32 @@ def register(app: typer.Typer) -> None:
         console.print(table)
 
     @app.command()
-    def sync(subject: str, dry_run: bool = typer.Option(False, "--dry-run")):
+    def sync(subject: str = typer.Argument(None, help="One subject (default: every subject "
+                                                  "with a Moodle course)"),
+             dry_run: bool = typer.Option(False, "--dry-run")):
         """Download and index new course material from Moodle."""
+        from udb.config import paths
         from udb.integrations.moodle import sync as ms
-        result = guarded(ms.sync_subject, subject.upper(), dry_run=dry_run)
-        for line in result["added"]:
-            console.print(f"[green]+[/green] {line}")
-        console.print(f"\nFiles: {len(result['added'])} new, {result['already_there']} already there.")
-        if dry_run:
-            return
-        words = guarded(ms.sync_classroom, subject.upper())
-        for line in words["new"]:
-            console.print(f"[green]+[/green] {line}")
-        for line in words["updated"]:
-            console.print(f"[yellow]~[/yellow] {line}  (new version; the old one is superseded)")
-        console.print(f"Teacher's words in Moodle: {len(words['new'])} new, "
-                      f"{len(words['updated'])} updated, {words['same']} unchanged.")
+        codes = [subject.upper()] if subject else \
+            [s["code"] for s in paths.load_subjects() if s.get("moodle_course_id")]
+        if not codes:
+            die("No subject has moodle_course_id in config/subjects.yaml.")
+        for code in codes:
+            if len(codes) > 1:
+                console.print(f"\n[bold]{code}[/bold]")
+            result = guarded(ms.sync_subject, code, dry_run=dry_run)
+            for line in result["added"]:
+                console.print(f"[green]+[/green] {line}")
+            console.print(f"Files: {len(result['added'])} new, {result['already_there']} already there.")
+            if dry_run:
+                continue
+            words = guarded(ms.sync_classroom, code)
+            for line in words["new"]:
+                console.print(f"[green]+[/green] {line}")
+            for line in words["updated"]:
+                console.print(f"[yellow]~[/yellow] {line}  (new version; the old one is superseded)")
+            console.print(f"Teacher's words in Moodle: {len(words['new'])} new, "
+                          f"{len(words['updated'])} updated, {words['same']} unchanged.")
 
     @app.command()
     def assignments(subject: str = typer.Argument(None),

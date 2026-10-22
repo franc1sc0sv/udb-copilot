@@ -13,14 +13,13 @@ from udb.interfaces.cli.common import MARK, console, die
 app = typer.Typer(help="Configure the cloud once: secrets bundle and checks.")
 
 HOSTS = ["www.udbvirtual.edu.sv", "oauth2.googleapis.com", "gmail.googleapis.com",
-         "www.googleapis.com", "login.microsoftonline.com", "graph.microsoft.com",
-         "github.com", "pypi.org"]
+         "www.googleapis.com", "github.com", "pypi.org"]
 
 
 @app.command("secrets")
 def secrets_cmd(out: str = typer.Option(None, "--out", help="Write the bundle to this file "
                                          "instead of printing it")):
-    """Pack every credential (Moodle, Google, Outlook) into one value for UDB_SECRETS."""
+    """Pack every credential (Moodle, Google) into one value for UDB_SECRETS."""
     bundle, names = secrets.export()
     if not names:
         die("no credentials found. Run `udb moodle login` and `udb mail add` first.")

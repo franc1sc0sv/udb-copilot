@@ -279,7 +279,7 @@ def digest(hours: int = 24, alerts: bool = False) -> str:
 
 @server.tool()
 def mail_search(query: str = "", days: int = 7, account: str = "", limit: int = 25) -> str:
-    """Search every configured mail account (Gmail, Outlook, IMAP). Read-only."""
+    """Search every configured mail account (Gmail, IMAP). Read-only."""
     from udb.integrations.mail import base as mail
     terms = [t for t in query.split(",") if t.strip()] if query else []
     found, sources = mail.search_all(mail.Query(since_days=days, terms=terms, limit=limit),

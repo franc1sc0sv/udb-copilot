@@ -1,6 +1,6 @@
 ---
 name: udb-mail
-description: Searches every configured mail account (Gmail, Outlook, IMAP) and saves attachments. Use it for teacher emails, schedules and PDF attachments.
+description: Searches every configured mail account (Gmail, IMAP) and saves attachments. Use it for teacher emails, schedules and PDF attachments.
 ---
 
 # /udb-mail
