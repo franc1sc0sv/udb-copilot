@@ -1,26 +1,33 @@
 {% from "views/_macros.html.j2" import pill, row_start %}
-<h2 class="sr-only">Agenda de evaluaciones por materia, con el reparto de la nota.</h2>
+<h2 class="sr-only">Una tarjeta por materia: avance de la nota, lo que falta y lo ya entregado.</h2>
 {% for a in alerts[:6] %}<div style="font-size:13px;margin-bottom:6px;color:var(--text-{{ 'danger' if a.level == 'bad' else 'warning' }})"><i class="ti ti-alert-triangle" aria-hidden="true"></i> {{ a.subject }}: {{ a.text }}</div>{% endfor %}
 {% for s in subjects %}
 {% set b = s.breakdown %}
+{% set items = s['items'] | sort(attribute='end') %}
+{% set done = items | selectattr('state', 'equalto', 'submitted') | list %}
 <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin:12px 0">
-  <div style="display:flex;align-items:baseline;gap:8px"><span style="font-weight:500">{{ s.code }}</span><span style="color:var(--text-secondary);font-size:14px">{{ s.name }}</span></div>
+  <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-weight:500">{{ s.code }}</span><span style="color:var(--text-secondary);font-size:14px">{{ s.name }}</span><span style="flex:1"></span>
+    {% if b.graded %}<span style="font-size:13px;color:var(--text-secondary)">llevas {{ '%.1f' % b.earned }} de 10{% if b.needed is not none %} · necesitas {{ '%.1f' % b.needed }} en lo que falta{% endif %}</span>{% endif %}</div>
   {% if b.total %}
   <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin:10px 0 4px;background:var(--surface-1)" role="img" aria-label="Con nota {{ b.graded }}%, esperando nota {{ b.waiting }}%, por jugar {{ b.future }}%">
     <span style="width:{{ b.graded }}%;background:var(--fill-success)"></span>
     <span style="width:{{ b.waiting }}%;background:var(--fill-warning)"></span>
   </div>
-  <div style="font-size:12px;color:var(--text-secondary)">con nota {{ b.graded | round | int }}% · esperando {{ b.waiting | round | int }}% · por jugar {{ b.future | round | int }}%{% if b.needed is not none %} · necesitas {{ '%.1f' % b.needed }} en lo que falta{% endif %}</div>
+  <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">con nota {{ b.graded | round | int }}% · esperando nota {{ b.waiting | round | int }}% · por jugar {{ b.future | round | int }}%</div>
   {% endif %}
-  {% for it in s['items'] | sort(attribute='end') %}
-  {% set done = it.state == 'submitted' %}
+  {% for it in items if it.state != 'submitted' and (it.end >= today or it.get('late')) %}
   {{ row_start() }}
-    <span style="min-width:72px">{% if it.get('grade10') is not none %}{{ pill("nota " ~ ('%.1f' % it.get('grade10')), 'success') }}{% elif done %}{{ pill("entregada", 'success') }}{% elif it.late %}{{ pill("vencida", 'danger') }}{% elif it.days >= 0 %}{{ pill(it.days ~ " d", tone_for_days(it.days, false)) }}{% else %}{{ pill("sin nota") }}{% endif %}</span>
-    <span style="flex:1;min-width:0">{{ it.label }}<span style="font-size:12px;color:var(--text-muted)"> · {{ fmt(it.end) }}</span></span>
-    <span style="font-size:12px;color:var(--text-secondary)">{{ state_es.get(it.state, it.state) }}</span>
+    <span style="min-width:64px">{% if it.get('late') %}{{ pill("vencida", 'danger') }}{% else %}{{ pill(it.days ~ " d", tone_for_days(it.days, false)) }}{% endif %}</span>
+    <span style="flex:1;min-width:0">{{ it.label }}<span style="font-size:12px;color:var(--text-muted)"> · {{ fmt(it.end) }}{% if it.get('mismatch') %} · Moodle {{ fmt(it.moodle_due) }}{% endif %}</span></span>
+    <span style="font-size:12px;color:var(--text-secondary)">{{ "sin publicar" if it.state in ('not-published', 'exam') else "pendiente" }}</span>
     <span style="font-size:13px;color:var(--text-secondary);min-width:34px;text-align:right">{{ it.weight }}%</span>
   </div>
   {% endfor %}
+  {% if done %}
+  <div style="display:flex;flex-wrap:wrap;gap:6px;border-top:0.5px solid var(--border);padding-top:8px;margin-top:6px">
+    {% for it in done %}<span style="font-size:12px;padding:2px 8px;border-radius:var(--radius);background:var(--bg-success);color:var(--text-success)">{{ it.label }}{% if it.get('grade10') is not none %} · {{ '%.1f' % it.get('grade10') }}{% endif %} · {{ it.weight }}%</span>{% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endfor %}
 {% set failed = sources | rejectattr('ok') | list %}

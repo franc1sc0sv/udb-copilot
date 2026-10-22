@@ -5,7 +5,6 @@ the same every time; Claude only passes it to `show_widget`. The fragments use
 Claude's CSS variables, so they follow light and dark mode. Long content
 (lessons, exercise guides) stays as pages in the vault instead.
 """
-from datetime import date
 
 from udb.domain.planning.agenda import fmt
 from udb.rendering.jinja import env
@@ -52,18 +51,21 @@ def agenda(data: dict) -> str:
                    sources=data["sources"], today=data["today"])
 
 
-def _task_rank(row: dict) -> tuple:
-    """Open work first (soonest on top), then overdue and missing, then what is done."""
-    done = row["moodle"] == "submitted"
-    open_ = row["days"] is None or row["days"] >= 0
-    if done:
-        return (2, -(row["due"] or 0))
-    return (0, row["due"] or 10**12) if open_ else (1, -(row["due"] or 0))
+def pending(data: dict) -> list[dict]:
+    """What is still to do, from the learning routes (published in Moodle or not): open work
+    by date first, then what is overdue and missing. Exams already taken are not pending."""
+    today = data["today"]
+    rows = []
+    for s in data["subjects"]:
+        for it in s["items"]:
+            if it["state"] == "submitted" or not (it["end"] >= today or it.get("late")):
+                continue
+            rows.append({**it, "code": s["code"], "name": s["name"]})
+    return sorted(rows, key=lambda r: (bool(r.get("late")), r["end"], r["code"]))
 
 
-def tasks(rows: list[dict]) -> str:
-    today = date.today()
-    return _render("tasks", rows=sorted(rows, key=_task_rank), today=today)
+def tasks(data: dict) -> str:
+    return _render("tasks", rows=pending(data), today=data["today"])
 
 
 def build(kind: str, subject: str | None = None) -> str:
@@ -82,7 +84,6 @@ def build(kind: str, subject: str | None = None) -> str:
         from udb.domain.planning import agenda as ag
         return agenda(ag.build(code))
     if kind == "tasks":
-        from udb.domain.planning import tasks as tb
-        from udb.integrations.moodle import reader
-        return tasks(tb.board(reader.deadlines(code), code))
+        from udb.domain.planning import agenda as ag
+        return tasks(ag.build(code, online=False))
     raise ValueError("kind must be digest, status, agenda or tasks")

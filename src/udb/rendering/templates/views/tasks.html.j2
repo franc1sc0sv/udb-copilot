@@ -1,12 +1,26 @@
-{% from "views/_macros.html.j2" import pill, row_start %}
-<h2 class="sr-only">Tareas: estado en Moodle y carpeta local.</h2>
-{% for r in rows %}
-{{ row_start() }}
-  <span style="min-width:72px">{% if r.days is not none %}{{ pill((r.days ~ " d") if r.days >= 0 else "vencida", tone_for_days(r.days, r.moodle == 'submitted') if r.days >= 0 else ('success' if r.moodle == 'submitted' else 'danger')) }}{% else %}{{ pill("sin fecha") }}{% endif %}</span>
-  <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:34px">{{ r.subject }}</span>
-  <span style="flex:1;min-width:0">{{ r.title }}{% if r.type in ('quiz', 'forum') %}<span style="font-size:12px;color:var(--text-muted)"> · {{ 'examen' if r.type == 'quiz' else 'foro' }}</span>{% endif %}</span>
-  {% if r.grade %}{{ pill(r.grade, 'success') }}{% endif %}
-  {{ pill(state_es.get(r.moodle, r.moodle), 'success' if r.moodle == 'submitted' else 'neutral') }}
-  {{ pill(r.local, 'success' if r.local in ('submitted', 'graded') else 'neutral') }}
+{% from "views/_macros.html.j2" import pill, metric, row_start %}
+<h2 class="sr-only">Lo que falta por hacer, de todas las materias, según las rutas de aprendizaje.</h2>
+{% set open_ = rows | rejectattr('late') | list %}
+{% set late_ = rows | selectattr('late') | list %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:0 0 1rem">
+  {{ metric("Por hacer", open_ | length, "próximas") }}
+  {{ metric("Vencidas sin entrega", late_ | length) }}
+  {% if open_ %}{{ metric("Lo más cercano", when((open_[0].end - today).days), open_[0].code ~ " · " ~ open_[0].label) }}{% endif %}
 </div>
-{% endfor %}
+{% macro line(r) %}
+{{ row_start() }}
+  <span style="min-width:64px">{% if r.late %}{{ pill("vencida", 'danger') }}{% else %}{{ pill(((r.end - today).days) ~ " d", tone_for_days((r.end - today).days, false)) }}{% endif %}</span>
+  <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:34px">{{ r.code }}</span>
+  <span style="flex:1;min-width:0">{{ r.label }}
+    <span style="display:block;font-size:12px;color:var(--text-muted)">{{ fmt(r.end) }}{% if r.get('mismatch') %} · Moodle cierra {{ fmt(r.moodle_due) }}{% endif %}{% if r.kind == 'exam' %} · examen{% elif r.kind == 'forum' %} · foro{% elif r.kind == 'project' %} · proyecto{% endif %}</span></span>
+  <span style="font-size:13px;color:var(--text-secondary);min-width:34px;text-align:right">{{ r.weight }}%</span>
+  {{ pill("sin publicar" if r.state in ('not-published', 'exam') else "pendiente", 'neutral') }}
+  {% if r.get('local_status') %}{{ pill(r.local_status, 'success' if r.local_status in ('submitted', 'graded') else 'neutral') }}{% endif %}
+</div>
+{% endmacro %}
+{% for r in open_ %}{{ line(r) }}{% endfor %}
+{% if late_ %}
+<div style="font-size:13px;color:var(--text-danger);margin:1rem 0 2px">Vencidas y sin entrega</div>
+{% for r in late_ %}{{ line(r) }}{% endfor %}
+{% endif %}
+{% if not rows %}<div style="padding:12px 0;color:var(--text-secondary)">No hay nada pendiente.</div>{% endif %}
