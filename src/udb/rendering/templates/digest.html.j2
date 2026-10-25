@@ -1,41 +1,47 @@
-{#- The digest email. Email-safe: tables and inline styles only (Gmail drops most CSS).
+{#- The digest email, designed for a phone: one column, read top to bottom, no side
+    columns. Email-safe: tables and inline styles (Gmail drops most CSS).
     Palette after Claude: ivory page, white cards, clay accent, serif headings. -#}
 {%- set C = {"page": "#F0EEE6", "card": "#FFFFFF", "line": "#E8E6DC", "ink": "#141413",
-             "muted": "#5E5D59", "faint": "#87867F", "clay": "#C15F3C", "clay_bg": "#F9ECE6"} -%}
+             "muted": "#5E5D59", "faint": "#87867F", "clay": "#C15F3C"} -%}
 {%- set TONE = {"urgent": ("#B53A2E", "#FBEAE7"), "soon": ("#A86412", "#FBF0DD"),
                 "ok": ("#4F6B2E", "#EDF2E4"), "check": ("#7A5C99", "#F1EBF7"),
                 "info": ("#2F6290", "#E6EEF7"), "none": ("#5E5D59", "#F0EEE6")} -%}
 {%- set PALETTE = [("#C15F3C", "#F9ECE6"), ("#2F6290", "#E6EEF7"), ("#4F6B2E", "#EDF2E4"),
                    ("#7A5C99", "#F1EBF7"), ("#9A6A2F", "#F6EDE0"), ("#2E7A73", "#E3F2F0")] -%}
+{%- set GROUPS = [("hoy", "Urgente · hoy", "urgent"), ("mañana", "Mañana", "soon"),
+                  ("semana", "Próximos 7 días", "none"), ("revisar", "Para revisar", "check")] -%}
+{%- set KIND = {"exam": "examen", "quiz": "examen", "assignment": "entrega", "assign": "entrega",
+                "forum": "foro", "project": "proyecto"} -%}
 {%- set codes = d.subjects | list -%}
 {%- set SERIF = "Georgia,'Times New Roman',serif" -%}
 {%- set SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" -%}
-{%- set KIND_ICON = {"examen": "🧪", "exam": "🧪", "quiz": "🧪", "entrega": "📄", "assignment": "📄",
-                     "assign": "📄", "foro": "💬", "forum": "💬", "clase en vivo": "🎥", "project": "🛠️",
-                     "proyecto": "🛠️", "evento": "📌"} -%}
 
 {%- macro chip(code) -%}
 {%- set i = codes.index(code) if code in codes else -1 -%}
 {%- set col = PALETTE[i % 6] if i >= 0 else ("#5E5D59", "#F0EEE6") -%}
-<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:{{ col[1] }};color:{{ col[0] }};font:700 11px/16px {{ SANS }};letter-spacing:.3px;">{{ code or "—" }}</span>
+<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:{{ col[1] }};color:{{ col[0] }};font:700 11px/17px {{ SANS }};letter-spacing:.3px;">{{ code or "—" }}</span>
 {%- endmacro -%}
 
 {%- macro badge(text, tone) -%}
-<span style="display:inline-block;padding:3px 9px;border-radius:6px;background:{{ TONE[tone][1] }};color:{{ TONE[tone][0] }};font:700 11px/15px {{ SANS }};letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;">{{ text }}</span>
+<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:{{ TONE[tone][1] }};color:{{ TONE[tone][0] }};font:700 11px/15px {{ SANS }};letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;">{{ text }}</span>
+{%- endmacro -%}
+
+{%- macro tag(text) -%}
+<span style="display:inline-block;padding:0 7px;border-radius:999px;border:1px solid {{ C.line }};color:{{ C.muted }};font:11px/17px {{ SANS }};">{{ text }}</span>
 {%- endmacro -%}
 
 {%- macro days_text(days) -%}
-{{ "hoy" if days == 0 else "mañana" if days == 1 else days ~ " días" }}
+{{ "hoy" if days == 0 else "mañana" if days == 1 else "en " ~ days ~ " días" }}
 {%- endmacro -%}
 
-{%- macro card_open(title, icon, note="") -%}
-<tr><td style="padding:0 0 16px;">
+{%- macro card_open(title, note="") -%}
+<tr><td style="padding:0 0 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ C.card }};border:1px solid {{ C.line }};border-radius:14px;">
-<tr><td style="padding:18px 20px 6px;">
-  <div style="font:600 18px/24px {{ SERIF }};color:{{ C.ink }};">{{ icon }}&nbsp; {{ title }}</div>
-  {% if note %}<div style="font:13px/18px {{ SANS }};color:{{ C.faint }};margin-top:2px;">{{ note }}</div>{% endif %}
+<tr><td class="cardpad" style="padding:16px 18px 4px;">
+  <div style="font:600 19px/24px {{ SERIF }};color:{{ C.ink }};"><span style="display:inline-block;width:4px;height:17px;background:{{ C.clay }};border-radius:2px;margin-right:9px;vertical-align:-2px;"></span>{{ title }}</div>
+  {% if note %}<div style="font:13px/18px {{ SANS }};color:{{ C.faint }};margin-top:3px;">{{ note }}</div>{% endif %}
 </td></tr>
-<tr><td style="padding:6px 20px 16px;">
+<tr><td class="cardpad" style="padding:8px 18px 14px;">
 {%- endmacro -%}
 
 {%- macro card_close() -%}
@@ -47,6 +53,8 @@
 {% if url %}<a href="{{ url }}" style="color:{{ color }};text-decoration:none;">{{ text }}</a>{% else %}{{ text }}{% endif %}
 {%- endmacro -%}
 
+{%- macro sep(first) -%}{{ "" if first else "border-top:1px solid " ~ C.line ~ ";" }}{%- endmacro -%}
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -56,131 +64,124 @@
 <meta name="supported-color-schemes" content="light only">
 <title>{{ "Novedades en el aula" if d.mode == "alerts" else "Tu día" }}</title>
 <style>
-  @media (max-width:520px){ .pad{padding-left:10px!important;padding-right:10px!important} .big{font-size:25px!important;line-height:31px!important} }
+  @media (max-width:520px){
+    .outer{padding:12px 6px!important}
+    .cardpad{padding-left:14px!important;padding-right:14px!important}
+    .big{font-size:27px!important;line-height:32px!important}
+  }
 </style>
 </head>
 <body style="margin:0;padding:0;background:{{ C.page }};">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ C.page }};">
-<tr><td class="pad" align="center" style="padding:24px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
+<tr><td class="outer" align="center" style="padding:20px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
 
 {#- ------------------------------------------------------------ header #}
 {%- set cr = d.classroom -%}
 {%- set fresh = cr.updates | selectattr("new") | list -%}
-<tr><td style="padding:0 4px 18px;">
-  <div style="font:700 12px/16px {{ SANS }};color:{{ C.clay }};letter-spacing:1.2px;text-transform:uppercase;">✳ udb · {{ "novedades en el aula" if d.mode == "alerts" else "tu resumen" }}</div>
+{%- set open = d.countdown | rejectattr("submitted") | list if d.countdown else [] -%}
+<tr><td style="padding:4px 8px 16px;">
+  <div style="font:700 12px/16px {{ SANS }};color:{{ C.clay }};letter-spacing:1.4px;text-transform:uppercase;">✳ udb · {{ "novedades en el aula" if d.mode == "alerts" else "tu resumen" }}</div>
   <div class="big" style="font:600 30px/36px {{ SERIF }};color:{{ C.ink }};margin-top:6px;">
     {%- if d.mode == "alerts" %}Algo cambió en tu aula{% else %}{{ d.date | day_month | capitalize }}{% endif -%}
   </div>
-  <div style="font:14px/20px {{ SANS }};color:{{ C.muted }};margin-top:4px;">
-    {{ d.date | long_date | capitalize }} · generado a las {{ d.generated | clock }}
-  </div>
-  {%- if d.mode != "alerts" %}
-  {%- set first = (d.countdown | rejectattr("submitted") | list)[:1] %}
-  <div style="font:15px/22px {{ SANS }};color:{{ C.ink }};margin-top:12px;">
-    {%- if d.due_soon %}Tienes <b>{{ d.due_soon | length }} pendiente{{ "s" if d.due_soon | length > 1 }}</b> en las próximas 72 horas.
-    {%- elif first %}Nada vence en 72 horas.{% else %}Nada pendiente en las próximas semanas.{% endif %}
-    {%- if first %} Lo más cercano: <b>{{ first[0].label }}</b> ({{ first[0].subject }}), {{ days_text(first[0].days) }}{% if first[0].due_ts %} a las {{ first[0].due_ts | clock }}{% else %}.{% endif %}{% endif %}
-  </div>
-  {%- if d.classes_today or d.events_today %}
-  <div style="margin-top:10px;font:13px/22px {{ SANS }};color:{{ C.muted }};">
+  <div style="font:14px/20px {{ SANS }};color:{{ C.muted }};margin-top:4px;">{{ d.date | long_date | capitalize }} · {{ d.generated | clock }}</div>
+  {%- if d.mode != "alerts" and (d.classes_today or d.events_today) %}
+  <div style="font:13px/22px {{ SANS }};color:{{ C.muted }};margin-top:8px;">
     {%- if d.classes_today %}Clases hoy: {% for c in d.classes_today %}{{ chip(c.code) }} {% endfor %}{% endif %}
     {%- if d.events_today %}{% if d.classes_today %}<br>{% endif %}Tu calendario: {% for e in d.events_today %}<b>{{ e.start | clock }}</b> {{ e.title }}{{ " · " if not loop.last }}{% endfor %}{% endif %}
   </div>
   {%- endif %}
-  {%- endif %}
 </td></tr>
 
-{#- ------------------------------------------------------------ stat tiles #}
+{#- ------------------------------------------------------------ at a glance #}
 {%- if d.mode != "alerts" %}
-{%- set tiles = [("Vence en 72 h", d.due_soon | length, "urgent" if d.due_soon else "ok"),
-                 ("Evaluaciones en 45 días", d.countdown | rejectattr("submitted") | list | length, "none"),
-                 ("Cambios nuevos", fresh | length, "info" if fresh else "none"),
-                 ("Notificaciones", cr.notifications | length, "check" if cr.notifications else "none")] %}
-<tr><td style="padding:0 0 4px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-{%- for row in tiles | batch(2) %}
-<tr>
-  {%- for t in row %}
-  <td width="50%" style="padding:{{ '0 6px 12px 0' if loop.first else '0 0 12px 6px' }};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ C.card }};border:1px solid {{ C.line }};border-top:3px solid {{ TONE[t[2]][0] }};border-radius:12px;">
-    <tr><td style="padding:12px 14px;">
-      <div style="font:600 28px/32px {{ SERIF }};color:{{ TONE[t[2]][0] }};">{{ t[1] }}</div>
-      <div style="font:12px/16px {{ SANS }};color:{{ C.muted }};margin-top:2px;">{{ t[0] }}</div>
-    </td></tr></table>
-  </td>
-  {%- endfor %}
-</tr>
+{%- set today_n = open | selectattr("days", "equalto", 0) | list | length %}
+{%- set tomorrow_n = open | selectattr("days", "equalto", 1) | list | length %}
+{%- set week_n = open | selectattr("days", "le", 7) | list | length - today_n - tomorrow_n %}
+{%- set glance = [(today_n, "cierra hoy" if today_n == 1 else "cierran hoy", "urgent" if today_n else "ok"),
+                  (tomorrow_n, "cierra mañana" if tomorrow_n == 1 else "cierran mañana", "soon" if tomorrow_n else "ok"),
+                  (week_n, "más en los próximos 7 días", "none"),
+                  (fresh | length, "cambios nuevos en Moodle", "info" if fresh else "none"),
+                  (cr.notifications | length, "notificaciones sin leer", "check" if cr.notifications else "none")] %}
+<tr><td style="padding:0 0 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ C.card }};border:1px solid {{ C.line }};border-radius:14px;">
+{%- for n, label, tone in glance %}
+<tr><td class="cardpad" style="padding:11px 18px;{{ sep(loop.first) }}">
+  <span style="display:inline-block;min-width:34px;font:600 24px/28px {{ SERIF }};color:{{ TONE[tone][0] }};vertical-align:middle;">{{ n }}</span>
+  <span style="font:15px/22px {{ SANS }};color:{{ C.ink if n else C.faint }};vertical-align:middle;">{{ label }}</span>
+</td></tr>
 {%- endfor %}
 </table>
 </td></tr>
 {%- endif %}
 
-{#- ------------------------------------------------------------ next steps #}
+{#- ------------------------------------------------------------ next steps, by urgency #}
 {%- if d.next_steps %}
-{{ card_open("Qué hacer ahora", "🎯", "En orden: lo que cierra antes y pesa más va primero.") }}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-{%- for s in d.next_steps %}
-<tr><td style="padding:6px 0;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ TONE[s.tone][1] }};border-left:4px solid {{ TONE[s.tone][0] }};border-radius:10px;">
-  <tr>
-    <td width="30" valign="top" style="padding:12px 0 12px 12px;font:700 18px/22px {{ SERIF }};color:{{ TONE[s.tone][0] }};">{{ loop.index }}</td>
-    <td valign="top" style="padding:12px 10px 12px 4px;">
-      <div style="font:600 15px/20px {{ SANS }};color:{{ C.ink }};">{{ s.title }}</div>
-      <div style="font:13px/20px {{ SANS }};color:{{ C.muted }};margin-top:3px;">
-        {%- if s.subject %}{{ chip(s.subject) }}&nbsp; {% endif %}
-        {%- if s.due %}Cierra {{ s.due | day_month }}{% if s.due | clock %}, {{ s.due | clock }}{% endif %} · <b style="color:{{ TONE[s.tone][0] }};">{{ s.due | left }}</b>{% endif %}
-        {%- if s.weight %} · vale <b>{{ s.weight }}%</b>{% endif %}
-        {%- if s.route_day %}Moodle dice <b>{{ s.moodle_day | day_month }}</b>; la ruta de aprendizaje, <b>{{ s.route_day | day_month }}</b>.{% endif %}
-      </div>
-    </td>
-    {%- if s.url %}
-    <td width="64" align="right" valign="middle" style="padding:12px 12px 12px 0;">
-      <a href="{{ s.url }}" style="display:inline-block;padding:7px 11px;border-radius:8px;background:{{ TONE[s.tone][0] }};color:#FFFFFF;font:600 12px/14px {{ SANS }};text-decoration:none;white-space:nowrap;">Abrir →</a>
-    </td>
-    {%- endif %}
-  </tr></table>
-</td></tr>
+{{ card_open("Qué hacer ahora", "Lo que cierra antes va primero; el mismo día, lo que pesa más.") }}
+{%- for key, title, tone in GROUPS %}
+{%- set steps = d.next_steps | selectattr("group", "equalto", key) | list %}
+{%- if steps %}
+<div style="margin:{{ '4px' if loop.first else '14px' }} 0 6px;">{{ badge(title, tone) }}</div>
+{%- for s in steps %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;background:{{ TONE[s.tone][1] }};border-left:4px solid {{ TONE[s.tone][0] }};border-radius:10px;">
+<tr><td style="padding:12px 14px;">
+  <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};">{{ s.title }}</div>
+  {%- if s.due %}
+  <div style="font:13px/20px {{ SANS }};color:{{ C.muted }};margin-top:4px;">{{ s.due | day_month | capitalize }}{% if s.due | clock %}, {{ s.due | clock }}{% endif %}</div>
+  <div style="font:700 13px/20px {{ SANS }};color:{{ TONE[s.tone][0] }};">{{ s.due | left | capitalize }}{% if s.weight %}<span style="font-weight:400;color:{{ C.muted }};"> · vale {{ s.weight }}% de la nota</span>{% endif %}</div>
+  {%- endif %}
+  {%- if s.route_day %}
+  <div style="font:13px/20px {{ SANS }};color:{{ C.muted }};margin-top:4px;">Moodle dice <b>{{ s.moodle_day | day_month }}</b>; la ruta de aprendizaje, <b>{{ s.route_day | day_month }}</b>.</div>
+  {%- endif %}
+  <div style="margin-top:8px;">
+    {%- if s.subject %}{{ chip(s.subject) }}&nbsp; {% endif %}
+    {%- if s.url %}<a href="{{ s.url }}" style="display:inline-block;padding:5px 12px;border-radius:8px;background:{{ TONE[s.tone][0] }};color:#FFFFFF;font:600 12px/14px {{ SANS }};text-decoration:none;">Abrir</a>{% endif %}
+  </div>
+</td></tr></table>
 {%- endfor %}
-</table>
+{%- endif %}
+{%- endfor %}
 {{ card_close() }}
 {%- endif %}
 
-{#- ------------------------------------------------------------ countdown #}
+{#- ------------------------------------------------------------ evaluations #}
 {%- if d.mode != "alerts" and d.countdown %}
-{{ card_open("Próximas evaluaciones", "📅", "Las de los próximos 45 días, con su peso en la nota.") }}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{{ card_open("Próximas evaluaciones", "Los próximos 45 días, con su peso en la nota.") }}
 {%- for i in d.countdown %}
 {%- set tone = "ok" if i.submitted else "urgent" if i.days <= 1 else "soon" if i.days <= 3 else "none" %}
-<tr><td style="padding:10px 0;border-top:{{ '0' if loop.first else '1px solid ' ~ C.line }};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td width="78" valign="top" style="padding-right:8px;">{{ badge("entregada" if i.submitted else days_text(i.days), tone) }}</td>
-    <td valign="top">
-      <div style="font:600 14px/19px {{ SANS }};color:{{ C.ink }};">{{ KIND_ICON.get(i.kind, "📌") }} {{ link(i.label, i.url) }}</div>
-      <div style="font:12px/19px {{ SANS }};color:{{ C.muted }};margin-top:3px;">{{ chip(i.subject) }}&nbsp; {{ (i.due_ts or i.due) | day_month }}{% if i.due_ts %} · {{ i.due_ts | clock }}{% endif %}</div>
-      {%- if i.route_due %}<div style="font:12px/17px {{ SANS }};color:{{ TONE.check[0] }};margin-top:3px;">⚠ La ruta de aprendizaje dice {{ i.route_due | day_month }}</div>{% endif %}
-    </td>
-    <td width="48" align="right" valign="top" style="font:600 18px/22px {{ SERIF }};color:{{ C.ink if i.weight else C.faint }};">{{ (i.weight ~ "%") if i.weight else "—" }}</td>
-  </tr></table>
-</td></tr>
+<div style="padding:11px 0;{{ sep(loop.first) }}">
+  <div>{{ badge("entregada" if i.submitted else days_text(i.days), tone) }}{% if i.weight %}&nbsp; <span style="font:600 14px/18px {{ SERIF }};color:{{ C.ink }};">{{ i.weight }}%</span>{% endif %}</div>
+  <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};margin-top:6px;">{{ link(i.label, i.url) }}</div>
+  <div style="font:13px/20px {{ SANS }};color:{{ C.muted }};margin-top:3px;">{{ chip(i.subject) }}&nbsp; {{ (i.due_ts or i.due) | day_month }}{% if i.due_ts %}, {{ i.due_ts | clock }}{% endif %}{% if KIND.get(i.kind) %} · {{ KIND[i.kind] }}{% endif %}</div>
+  {%- if i.route_due %}<div style="font:12px/18px {{ SANS }};color:{{ TONE.check[0] }};margin-top:3px;">La ruta de aprendizaje dice {{ i.route_due | day_month }}</div>{% endif %}
+</div>
 {%- endfor %}
-</table>
 {{ card_close() }}
 {%- endif %}
 
-{#- ------------------------------------------------------------ Moodle calendar #}
+{#- ------------------------------------------------------------ Moodle calendar as a timeline #}
 {%- if d.calendar %}
-{{ card_open("Calendario del aula", "🗓️", "Próximas 3 semanas en Moodle: clases en vivo, cierres y foros.") }}
+{{ card_open("Calendario del aula", "Próximas 3 semanas en Moodle, de arriba hacia abajo.") }}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 {%- for day, events in d.calendar | groupby("day") %}
-<tr><td style="padding:{{ '2px' if loop.first else '14px' }} 0 4px;font:700 11px/16px {{ SANS }};color:{{ C.clay }};letter-spacing:1px;text-transform:uppercase;">{{ day | day_month }}{% if day == d.date %} · hoy{% endif %}</td></tr>
+{%- set is_today = day == d.date %}
+{%- set dot = TONE.urgent[0] if is_today else C.clay %}
+<tr>
+  <td width="14" valign="top" style="width:14px;border-right:2px solid {{ C.line }};padding-top:{{ '2px' if loop.first else '16px' }};">
+    <div style="width:12px;height:12px;border-radius:50%;background:{{ dot }};border:2px solid {{ C.card }};margin-left:6px;"></div>
+  </td>
+  <td valign="top" style="padding:{{ '0' if loop.first else '14px' }} 0 2px 14px;font:700 12px/18px {{ SANS }};color:{{ dot }};letter-spacing:.8px;text-transform:uppercase;">{{ "Hoy · " if is_today }}{{ day | day_month }}</td>
+</tr>
 {%- for e in events %}
-<tr><td style="padding:5px 0;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td width="76" valign="top" style="font:700 13px/19px {{ SANS }};color:{{ C.ink }};white-space:nowrap;">{{ e.ts | clock }}</td>
-    <td valign="top" style="font:14px/19px {{ SANS }};color:{{ C.ink }};">{{ KIND_ICON.get(e.kind, "📌") }} {{ link(e.name, e.url) }}<br><span style="font:12px/19px {{ SANS }};color:{{ C.muted }};">{{ chip(e.subject) }}&nbsp; {{ e.kind }}</span></td>
-  </tr></table>
-</td></tr>
+<tr>
+  <td width="14" style="width:14px;border-right:2px solid {{ C.line }};"></td>
+  <td valign="top" style="padding:6px 0 6px 14px;">
+    <div style="font:700 13px/18px {{ SANS }};color:{{ C.muted }};">{{ e.ts | clock }}</div>
+    <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};">{{ link(e.name, e.url) }}</div>
+    <div style="margin-top:3px;">{{ chip(e.subject) }} {{ tag(e.kind) }}</div>
+  </td>
+</tr>
 {%- endfor %}
 {%- endfor %}
 </table>
@@ -189,55 +190,45 @@
 
 {#- ------------------------------------------------------------ what changed #}
 {%- if cr.changed_assignments or cr.updates %}
-{{ card_open("Lo que cambió en Moodle", "🔄", ("En las últimas 2 horas." if d.mode == "alerts" else "Última semana. NUEVO = no salía en el resumen anterior.")) }}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{{ card_open("Lo que cambió en Moodle", ("En las últimas 2 horas." if d.mode == "alerts" else "Última semana. «Nuevo» no salía en el resumen anterior.")) }}
 {%- for u in cr.updates[:15] %}
-<tr><td style="padding:9px 0;border-top:{{ '0' if loop.first else '1px solid ' ~ C.line }};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td valign="top">
-      <div style="font:600 14px/19px {{ SANS }};color:{{ C.ink }};">{% if u.new %}{{ badge("nuevo", "urgent") }}&nbsp; {% endif %}{% if "grades" in u.changed %}{{ badge("📊 nota", "ok") }}&nbsp; {% endif %}{{ link(u.name, u.url) }}</div>
-      <div style="font:12px/22px {{ SANS }};color:{{ C.muted }};margin-top:2px;">{{ chip(u.subject) }}
-        {%- for c in u.changed_es %} <span style="display:inline-block;padding:0 7px;border-radius:999px;border:1px solid {{ C.line }};color:{{ C.muted }};font:11px/17px {{ SANS }};">{{ c }}</span>{% endfor %}
-      </div>
-    </td>
-    <td width="84" align="right" valign="top" style="font:12px/18px {{ SANS }};color:{{ C.faint }};white-space:nowrap;">{% if u.ts %}{{ u.ts | ago }}<br>{{ u.ts | short_date }}{% else %}—{% endif %}</td>
-  </tr></table>
-</td></tr>
+<div style="padding:10px 0;{{ sep(loop.first) }}">
+  {%- if u.new or "grades" in u.changed %}<div style="margin-bottom:5px;">{% if u.new %}{{ badge("nuevo", "urgent") }} {% endif %}{% if "grades" in u.changed %}{{ badge("nota publicada", "ok") }}{% endif %}</div>{% endif %}
+  <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};">{{ link(u.name, u.url) }}</div>
+  <div style="font:12px/22px {{ SANS }};color:{{ C.faint }};margin-top:3px;">{{ chip(u.subject) }}{% for c in u.changed_es %} {{ tag(c) }}{% endfor %}{% if u.ts %} · {{ u.ts | ago }}{% endif %}</div>
+</div>
 {%- endfor %}
 {%- for a in cr.changed_assignments if not (cr.updates | selectattr("url", "equalto", a.url) | list) %}
-<tr><td style="padding:9px 0;border-top:1px solid {{ C.line }};">
-  <div style="font:600 14px/19px {{ SANS }};color:{{ C.ink }};">{{ badge("editada", "info") }}&nbsp; {{ link(a.name, a.url) }}</div>
-  <div style="font:12px/18px {{ SANS }};color:{{ C.muted }};margin-top:3px;">{{ chip(a.subject) }}&nbsp; {% if a.due %}vence {{ a.due | day_month }}{% else %}sin fecha de cierre{% endif %}</div>
-</td></tr>
+<div style="padding:10px 0;border-top:1px solid {{ C.line }};">
+  <div style="margin-bottom:5px;">{{ badge("editada", "info") }}</div>
+  <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};">{{ link(a.name, a.url) }}</div>
+  <div style="font:12px/20px {{ SANS }};color:{{ C.muted }};margin-top:3px;">{{ chip(a.subject) }}&nbsp; {% if a.due %}vence {{ a.due | day_month }}{% else %}sin fecha de cierre{% endif %}</div>
+</div>
 {%- endfor %}
-</table>
 {{ card_close() }}
 {%- endif %}
 
 {#- ------------------------------------------------------------ notifications #}
 {%- if cr.notifications %}
-{{ card_open("Notificaciones sin leer", "🔔") }}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{{ card_open("Notificaciones sin leer") }}
 {%- for n in cr.notifications %}
-<tr><td style="padding:8px 0;border-top:{{ '0' if loop.first else '1px solid ' ~ C.line }};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td valign="top" style="font:14px/19px {{ SANS }};color:{{ C.ink }};">{% if n.new %}{{ badge("nuevo", "urgent") }}&nbsp; {% endif %}{{ link(n.subject, n.link) }}</td>
-    <td width="84" align="right" valign="top" style="font:12px/18px {{ SANS }};color:{{ C.faint }};white-space:nowrap;">{{ n.ts | ago }}</td>
-  </tr></table>
-</td></tr>
+<div style="padding:10px 0;{{ sep(loop.first) }}">
+  {%- if n.new %}<div style="margin-bottom:5px;">{{ badge("nuevo", "urgent") }}</div>{% endif %}
+  <div style="font:15px/21px {{ SANS }};color:{{ C.ink }};">{{ link(n.subject, n.link) }}</div>
+  <div style="font:12px/18px {{ SANS }};color:{{ C.faint }};margin-top:2px;">{{ n.ts | ago }}</div>
+</div>
 {%- endfor %}
-</table>
 {{ card_close() }}
 {%- endif %}
 
 {#- ------------------------------------------------------------ announcements #}
 {%- if cr.announcements %}
-{{ card_open("Anuncios de los profesores", "📣") }}
+{{ card_open("Anuncios de los profesores") }}
 {%- for a in cr.announcements %}
-<div style="padding:9px 0;border-top:{{ '0' if loop.first else '1px solid ' ~ C.line }};">
-  <div style="font:600 14px/19px {{ SANS }};color:{{ C.ink }};">{{ a.topic }}</div>
-  <div style="font:12px/19px {{ SANS }};color:{{ C.muted }};margin-top:2px;">{{ chip(a.subject) }}&nbsp; {{ a.author }} · {{ a.timestamp | ago }}</div>
-  {% if a.text %}<div style="font:13px/19px {{ SANS }};color:{{ C.muted }};margin-top:5px;">{{ a.text }}</div>{% endif %}
+<div style="padding:10px 0;{{ sep(loop.first) }}">
+  <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};">{{ a.topic }}</div>
+  <div style="font:12px/20px {{ SANS }};color:{{ C.muted }};margin-top:2px;">{{ chip(a.subject) }}&nbsp; {{ a.author }} · {{ a.timestamp | ago }}</div>
+  {% if a.text %}<div style="font:14px/20px {{ SANS }};color:{{ C.muted }};margin-top:5px;">{{ a.text }}</div>{% endif %}
 </div>
 {%- endfor %}
 {{ card_close() }}
@@ -245,11 +236,12 @@
 
 {#- ------------------------------------------------------------ said in class #}
 {%- if d.said_in_class %}
-{{ card_open("Dicho en clase", "🎙️", "Sacado de las grabaciones. Por confirmar hasta que salga en Moodle o en un correo.") }}
+{{ card_open("Dicho en clase", "De las grabaciones. Por confirmar hasta que salga en Moodle o en un correo.") }}
 {%- for x in d.said_in_class %}
-<div style="padding:9px 0;border-top:{{ '0' if loop.first else '1px solid ' ~ C.line }};">
-  <div style="font:12px/19px {{ SANS }};color:{{ C.muted }};">{{ chip(x.subject) }}&nbsp; clase del {{ x.class_date | day_month }} · minuto {{ x.t // 60 }}:{{ "%02d" % (x.t % 60) }}{% if x.dates %} · <b style="color:{{ TONE.soon[0] }};">{% for dt in x.dates %}{{ dt | day_month }}{{ ", " if not loop.last }}{% endfor %}</b>{% endif %}</div>
-  <div style="font:italic 14px/20px {{ SERIF }};color:{{ C.ink }};margin-top:4px;border-left:3px solid {{ C.line }};padding-left:10px;">«{{ x.quote }}»</div>
+<div style="padding:10px 0;{{ sep(loop.first) }}">
+  <div style="font:12px/20px {{ SANS }};color:{{ C.muted }};">{{ chip(x.subject) }}&nbsp; clase del {{ x.class_date | day_month }} · minuto {{ x.t // 60 }}:{{ "%02d" % (x.t % 60) }}</div>
+  {%- if x.dates %}<div style="font:700 13px/19px {{ SANS }};color:{{ TONE.soon[0] }};margin-top:2px;">{% for dt in x.dates %}{{ dt | day_month }}{{ ", " if not loop.last }}{% endfor %}</div>{% endif %}
+  <div style="font:italic 15px/22px {{ SERIF }};color:{{ C.ink }};margin-top:5px;border-left:3px solid {{ C.line }};padding-left:10px;">«{{ x.quote }}»</div>
 </div>
 {%- endfor %}
 {{ card_close() }}
@@ -257,36 +249,29 @@
 
 {#- ------------------------------------------------------------ mail #}
 {%- if d.mail %}
-{{ card_open("Correos", "✉️", "De profesores y del aula virtual.") }}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{{ card_open("Correos", "De profesores y del aula virtual.") }}
 {%- for m in d.mail[:10] %}
-<tr><td style="padding:8px 0;border-top:{{ '0' if loop.first else '1px solid ' ~ C.line }};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td valign="top">
-      <div style="font:600 14px/19px {{ SANS }};color:{{ C.ink }};">{{ link(m.subject or "(sin asunto)", m.link) }}</div>
-      <div style="font:12px/18px {{ SANS }};color:{{ C.muted }};margin-top:2px;">{{ m.sender }}</div>
-    </td>
-    <td width="84" align="right" valign="top" style="font:12px/18px {{ SANS }};color:{{ C.faint }};white-space:nowrap;">{{ m.date | ago }}</td>
-  </tr></table>
-</td></tr>
+<div style="padding:10px 0;{{ sep(loop.first) }}">
+  <div style="font:600 15px/21px {{ SANS }};color:{{ C.ink }};">{{ link(m.subject or "(sin asunto)", m.link) }}</div>
+  <div style="font:12px/18px {{ SANS }};color:{{ C.faint }};margin-top:2px;">{{ m.sender }} · {{ m.date | ago }}</div>
+</div>
 {%- endfor %}
-</table>
 {{ card_close() }}
 {%- endif %}
 
 {#- ------------------------------------------------------------ failed sources + footer #}
 {%- set failed = d.sources | rejectattr("ok") | list %}
 {%- if failed %}
-<tr><td style="padding:0 0 16px;">
+<tr><td style="padding:0 0 12px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ TONE.soon[1] }};border-left:4px solid {{ TONE.soon[0] }};border-radius:12px;">
-  <tr><td style="padding:12px 16px;font:13px/19px {{ SANS }};color:{{ C.ink }};">
-    <b>⚠ No pude leer:</b> {{ failed | map(attribute="name") | join(", ") }}. Lo que viene de ahí puede faltar en este correo.
+  <tr><td style="padding:12px 14px;font:14px/20px {{ SANS }};color:{{ C.ink }};">
+    <b>No pude leer:</b> {{ failed | map(attribute="name") | join(", ") }}. Lo que viene de ahí puede faltar.
   </td></tr></table>
 </td></tr>
 {%- endif %}
-<tr><td align="center" style="padding:6px 0 0;font:12px/18px {{ SANS }};color:{{ C.faint }};">
+<tr><td align="center" style="padding:6px 8px 8px;font:12px/18px {{ SANS }};color:{{ C.faint }};">
   Hecho por udb con datos de Moodle, tu correo y tu calendario, sin inventar nada.<br>
-  {{ link("Abrir el aula virtual →", d.moodle_url, C.clay) }}
+  {{ link("Abrir el aula virtual", d.moodle_url, C.clay) }}
 </td></tr>
 
 </table>

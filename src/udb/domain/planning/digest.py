@@ -260,7 +260,7 @@ def said_in_class(today: date, days: int = SAID_DAYS, limit: int = 8) -> list[di
     return sorted(out, key=lambda x: -x["points"])[:limit]
 
 
-STEPS = 4
+STEPS = 7
 
 
 def next_steps(d: dict, now: datetime) -> list[dict]:
@@ -269,25 +269,26 @@ def next_steps(d: dict, now: datetime) -> list[dict]:
     notifications and teacher mail. No model, so nothing is invented."""
     steps = []
     open_items = [i for i in d["countdown"] if not i["submitted"] and i["days"] <= 7]
-    for i in sorted(open_items, key=lambda i: (i["days"], -(i["weight"] or 0)))[:3]:
+    for i in sorted(open_items, key=lambda i: (i["days"], -(i["weight"] or 0)))[:5]:
         verb = "Presenta" if i["kind"] in ("exam", "quiz") else "Entrega"
         said = i["label"].lower().startswith(("entrega", "examen", "prueba", "presenta"))
         steps.append({"tone": "urgent" if i["days"] <= 1 else "soon",
                       "title": i["label"] if said else f"{verb}: {i['label']}",
-                      "subject": i["subject"],
+                      "subject": i["subject"], "days": i["days"],
+                      "group": "hoy" if i["days"] == 0 else "mañana" if i["days"] == 1 else "semana",
                       "due": i["due_ts"] or i["due"], "weight": i["weight"], "url": i["url"]})
     clash = next((i for i in d["countdown"] if i.get("route_due") and not i["submitted"]), None)
     if clash and len(steps) < STEPS:
-        steps.append({"tone": "check", "title": f"Confirma la fecha de {clash['label']}",
+        steps.append({"tone": "check", "group": "revisar", "title": f"Confirma la fecha de {clash['label']}",
                       "subject": clash["subject"], "url": clash["url"],
                       "moodle_day": clash["due_ts"] or clash["due"], "route_day": clash["route_due"]})
     unread = d["classroom"]["notifications"]
     if unread and len(steps) < STEPS:
-        steps.append({"tone": "info", "title": f"Lee {len(unread)} notificación"
+        steps.append({"tone": "info", "group": "revisar", "title": f"Lee {len(unread)} notificación"
                       f"{'es' if len(unread) > 1 else ''} sin leer en Moodle",
                       "url": f"{d['moodle_url']}/message/output/popup/notifications.php"})
     if d["mail"] and len(steps) < STEPS:
-        steps.append({"tone": "info", "title": f"Revisa {len(d['mail'])} correo"
+        steps.append({"tone": "info", "group": "revisar", "title": f"Revisa {len(d['mail'])} correo"
                       f"{'s' if len(d['mail']) > 1 else ''} de profesores o del aula",
                       "url": d["mail"][0].get("link")})
     return steps
