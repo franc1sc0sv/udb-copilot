@@ -23,9 +23,11 @@ PATH_FIX = 'export PATH="$HOME/.local/bin:$PATH"; '
 HOOK_PRE = (PATH_FIX + "command -v udb >/dev/null 2>&1 || { echo 'udb is not installed: "
             "blocking for safety' >&2; exit 2; }; udb hook pre")
 HOOK_POST = PATH_FIX + "command -v udb >/dev/null 2>&1 || exit 0; udb hook post"
-# In a cloud session (fresh container) install udb first, then build the index.
-HOOK_SESSION = (PATH_FIX + 'if ! command -v udb >/dev/null 2>&1 && [ "$CLAUDE_CODE_REMOTE" = true ]; '
-                f'then uv tool install -q "${{UDB_INSTALL_SPEC:-{INSTALL_SPEC}}}"; fi; '
+# In a cloud session install udb first, then build the index. Always reinstall: a cloud
+# environment keeps its disk between runs, so "install when missing" would keep an old
+# udb for ever. Two seconds; if the network fails the installed copy is used.
+HOOK_SESSION = (PATH_FIX + 'if [ "$CLAUDE_CODE_REMOTE" = true ]; '
+                f'then uv tool install -q --reinstall "${{UDB_INSTALL_SPEC:-{INSTALL_SPEC}}}" || true; fi; '
                 '[ -n "$CLAUDE_ENV_FILE" ] && echo \'export PATH="$HOME/.local/bin:$PATH"\' '
                 '>> "$CLAUDE_ENV_FILE"; command -v udb >/dev/null 2>&1 && udb hook session; exit 0')
 HOOK_PROMPT = PATH_FIX + "command -v udb >/dev/null 2>&1 || exit 0; udb hook prompt"
