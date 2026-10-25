@@ -120,3 +120,23 @@ def get() -> Settings:
 def reset() -> None:
     """Forget the cached settings (tests and `udb init` switch homes)."""
     get.cache_clear()
+
+
+LOCAL_ONLY = ("video download and GPU transcription, board stills and board reading, "
+              "Teams recordings through Claude in Chrome")
+
+
+def cloud() -> bool:
+    """True in a cloud session. `UDB_CLOUD=1|0` forces it; otherwise Claude Code's
+    `CLAUDE_CODE_REMOTE=true` decides. Cloud mode turns off what needs this computer."""
+    flag = os.environ.get("UDB_CLOUD", "").strip().lower()
+    if flag:
+        return flag in ("1", "true", "yes", "on")
+    return os.environ.get("CLAUDE_CODE_REMOTE") == "true"
+
+
+def require_local(what: str) -> None:
+    """Refuse a local-only feature in cloud mode with a message that says why."""
+    if cloud():
+        raise RuntimeError(f"{what} only runs on your computer (cloud mode: UDB_CLOUD or "
+                           "CLAUDE_CODE_REMOTE). Open a local session or Remote Control.")

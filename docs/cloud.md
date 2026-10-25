@@ -10,6 +10,14 @@ What works in the cloud: Moodle, mail, Calendar, Drive, search and citations,
 What stays on your computer: videos (download, GPU transcription, board
 reading), Teams recordings with Claude in Chrome, Packet Tracer.
 
+**Cloud mode.** udb turns the local-only parts off by itself when
+`CLAUDE_CODE_REMOTE=true` (every Claude Code cloud session). `UDB_CLOUD=1`
+forces cloud mode anywhere, `UDB_CLOUD=0` forces local mode. In cloud mode
+`udb recording download|attach|transcribe|frames|read-boards|process|stream-js|import-stream`
+stop with a clear message, the session hook skips the Moodle sync and tells
+Claude what is not available. Reading transcripts, board stills already
+committed and the radar keep working.
+
 ## 1. Environment
 
 In [claude.ai/code](https://claude.ai/code) → your vault repo → environment settings:
@@ -53,22 +61,28 @@ udb setup mathjax || true
 ## 2. Routines
 
 Ask Claude, in a session on the vault repo, to create these with `/schedule`.
+Both send the built-in email with `udb digest --send <account>` (the account
+needs `send: true` and the `gmail.send` scope), so no connector is needed and
+every line comes from a source. Cron runs in UTC; El Salvador is UTC−6.
 
-**Morning briefing, every day at 05:52:**
+**Morning briefing, every day at 05:52 (`52 11 * * *` UTC):**
 
-> Run `udb digest --json` in the vault. Write me an email in Spanish, warm and
-> short, subject "Mañanita: tu día <date>": classes today, what is due in the
-> next 72 hours in bold, the countdown to each evaluation with its weight, new
-> classroom activity and teacher mail. Mention any source that failed. Send it
-> to my Gmail with the Gmail connector.
+> In the vault root run `udb digest --send personal`. It mails "Mañanita: tu
+> día <date>": classes today, what is due in 72 hours, the countdown with
+> weights, the Moodle calendar, what changed this week (★ new), unread
+> notifications, what was said in class and teacher mail. Report the output.
+> If it says "No pude leer", name the failed sources.
 
-**Change alerts, every 2 hours from 07:00 to 22:00:**
+**Change alerts, every 2 hours from 07:00 to 21:00
+(`0 1,3,13,15,17,19,21,23 * * *` UTC):**
 
-> Run `udb digest --alerts --hours 2 --json`. If `empty` is true, do nothing.
-> Otherwise email me "Novedades en el aula" with each new item in one line.
+> In the vault root run `udb digest --alerts --hours 2 --send personal`. It
+> mails "Novedades en el aula" only when something is new; otherwise it sends
+> nothing. Report the output.
 
-Without a model, the same emails can be sent by `udb digest --send personal`
-(the account needs `send: true` and the `gmail.send` scope).
+A fresh clone has no `index/digest_seen.json`, so in the cloud "new" (★)
+means "inside the window" (24 hours for the briefing). Alerts only look at
+the window.
 
 ## 3. Phone
 

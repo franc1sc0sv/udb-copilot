@@ -34,9 +34,21 @@
   </table>
   {% endif %}
 {% endif %}
+{% if d.calendar %}
+  <h2 style="font-size:15px;margin:18px 0 6px;">Calendario de Moodle <span style="font-weight:400;color:#6b6862;">(próximos 21 días)</span></h2>
+  <ul style="margin:0;padding-left:18px;">{% for e in d.calendar %}<li>{{ e.when }} · <b>{{ e.subject or '?' }}</b> · {{ e.name }}</li>{% endfor %}</ul>
+{% endif %}
 {% if d.classroom.changed_assignments %}
   <h2 style="font-size:15px;margin:18px 0 6px;">Actividades nuevas o cambiadas</h2>
   <ul style="margin:0;padding-left:18px;">{% for a in d.classroom.changed_assignments %}<li><b>{{ a.subject }}</b> · <a href="{{ a.url }}">{{ a.name }}</a> · vence {{ a.due or 'sin fecha' }}</li>{% endfor %}</ul>
+{% endif %}
+{% if d.classroom.updates %}
+  <h2 style="font-size:15px;margin:18px 0 6px;">Cambios en Moodle{% if d.mode != 'alerts' %} <span style="font-weight:400;color:#6b6862;">(última semana, ★ = nuevo)</span>{% endif %}</h2>
+  <ul style="margin:0;padding-left:18px;">{% for u in d.classroom.updates[:20] %}<li>{% if u.new %}<b style="color:#b23a2b;">★</b> {% endif %}<b>{{ u.subject }}</b> · {{ u.name }} <span style="color:#6b6862;">({{ u.changed | join(', ') }}) {{ u.when or '' }}</span></li>{% endfor %}</ul>
+{% endif %}
+{% if d.classroom.notifications %}
+  <h2 style="font-size:15px;margin:18px 0 6px;">Notificaciones sin leer</h2>
+  <ul style="margin:0;padding-left:18px;">{% for n in d.classroom.notifications %}<li>{% if n.new %}<b style="color:#b23a2b;">★</b> {% endif %}{{ n.subject }} <span style="color:#6b6862;">{{ n.when }}</span></li>{% endfor %}</ul>
 {% endif %}
 {% if d.classroom.announcements %}
   <h2 style="font-size:15px;margin:18px 0 6px;">Anuncios</h2>

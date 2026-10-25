@@ -165,7 +165,6 @@ SYNC_TIMEOUT = 150   # seconds; a full sync takes about 35
 def session_start() -> int:
     """Build the search index when a fresh clone (cloud session) has none, then sync the
     classroom: every session starts with Moodle up to date and says what was left out."""
-    import os
     import shutil
     import subprocess
 
@@ -175,7 +174,9 @@ def session_start() -> int:
         if index.is_empty():
             counts = index.reindex_all()
             print(f"udb: search index built ({sum(counts.values())} chunks).")
-        if os.environ.get("CLAUDE_CODE_REMOTE") == "true":
+        if settings.cloud():
+            print(f"udb: cloud mode. Not available here: {settings.LOCAL_ONLY}. "
+                  "Moodle, mail, Calendar, Drive, search and citations work.")
             return 0
         from udb.config.paths import index_dir, load_subjects
         from udb.integrations.moodle import sync as ms

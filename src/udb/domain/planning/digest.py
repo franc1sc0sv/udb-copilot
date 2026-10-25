@@ -108,7 +108,8 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
                 for s in found[1]]
     labelled = [m for m in messages if m["labels"]] if mail.filters() else messages
 
-    news = _source(sources, "moodle-news", lambda: moodle_news(hours), {"updates": [], "notifications": []})
+    news = _source(sources, "moodle-news", lambda: moodle_news(hours, alerts, now),
+                   {"updates": [], "notifications": []})
     data = {
         "generated": now.isoformat(timespec="minutes"), "date": today.isoformat(),
         "weekday": WEEKDAYS[today.weekday()], "hours": hours, "mode": "alerts" if alerts else "digest",
@@ -162,21 +163,28 @@ def mark_seen(data: dict) -> None:
     (index_dir() / "digest_seen.json").write_text(json.dumps(sorted(keys)))
 
 
-def moodle_news(hours: int) -> dict:
+def moodle_news(hours: int, alerts: bool = False, now: datetime | None = None) -> dict:
     """What changed in the classroom (edited activities, new files, grades) in the last week
     and the unread notifications, each flagged `new` if no earlier digest showed it. Labels
-    that Moodle touches every day are left out."""
+    that Moodle touches every day are left out.
+
+    Without an earlier digest (a fresh cloud clone has no index/digest_seen.json), `new`
+    means inside the last `hours`. Alerts keep only what is inside the window."""
     from udb.integrations.moodle import reader
+    now = now or datetime.now(settings.get().tz)
+    cutoff = datetime.fromtimestamp(now.timestamp() - hours * 3600, now.tzinfo).strftime("%Y-%m-%d %H:%M")
     with reader.connect() as api:
-        updates = [u for u in reader.updates(api, hours=max(hours, NEWS_HOURS))
+        updates = [u for u in reader.updates(api, hours=hours if alerts else max(hours, NEWS_HOURS))
                    if u["name"] and u["subject"] and not any(n in " ".join(u["name"].lower().split()) for n in NOISE)]
         notes = reader.notifications(api, limit=15, unread_only=True)
+    if alerts:
+        notes = [n for n in notes if (n["when"] or "") >= cutoff]
     seen = _seen()
     for u in updates:
-        u["new"] = _key("u", u) not in seen
+        u["new"] = _key("u", u) not in seen if seen else (u["when"] or "") >= cutoff
     for n in notes:
         n["subject"] = n["subject"] or ""
-        n["new"] = _key("n", n) not in seen
+        n["new"] = _key("n", n) not in seen if seen else (n["when"] or "") >= cutoff
     updates.sort(key=lambda u: u["when"] or "", reverse=True)
     return {"updates": updates, "notifications": notes}
 
@@ -259,7 +267,8 @@ def as_text(d: dict) -> str:
         lines += [f"  - {a['subject']} · {a['name']} (vence {a['due'] or 'sin fecha'})"
                   for a in cr["changed_assignments"]]
     if cr["updates"]:
-        lines.append("\nCambios en Moodle (última semana, * = nuevo desde el último resumen):")
+        lines.append("\nCambios en Moodle:" if d["mode"] == "alerts" else
+                     "\nCambios en Moodle (última semana, * = nuevo desde el último resumen):")
         lines += [f"  {'*' if u['new'] else '-'} {u['subject'] or '?'} · {u['name']} "
                   f"({', '.join(u['changed'])}) {u['when'] or ''}" for u in cr["updates"][:20]]
     if cr["notifications"]:

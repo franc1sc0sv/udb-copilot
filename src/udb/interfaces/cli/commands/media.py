@@ -15,6 +15,17 @@ from udb.interfaces.cli.common import MARK, console, die, guarded
 
 app = typer.Typer(help="Class recordings: catalog, transcripts, board stills, radar.")
 
+# Need the video on disk, the GPU or the student's Chrome: off in cloud mode.
+LOCAL_ONLY = {"download", "attach", "transcribe", "frames", "read-boards", "process",
+              "stream-js", "import-stream"}
+
+
+@app.callback()
+def _cloud_guard(ctx: typer.Context):
+    from udb.config import settings
+    if ctx.invoked_subcommand in LOCAL_ONLY:
+        guarded(settings.require_local, f"udb recording {ctx.invoked_subcommand}")
+
 
 def _found(recording_id: str) -> dict:
     from udb.integrations.media import catalog
