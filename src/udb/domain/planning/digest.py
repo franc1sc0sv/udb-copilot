@@ -127,8 +127,10 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
     }
     if alerts:
         cr = data["classroom"]
+        data["reminders"] = reminders(countdown(rows, today), now)
+        data["next_steps"] = next_steps({**data, "countdown": data["reminders"]}, now)
         data["empty"] = not (cr["changed_assignments"] or announcements or labelled
-                             or cr["updates"] or cr["notifications"])
+                             or cr["updates"] or cr["notifications"] or data["reminders"])
         return data
 
     data["said_in_class"] = _source(sources, "recordings", lambda: said_in_class(today), [])
@@ -261,6 +263,25 @@ def said_in_class(today: date, days: int = SAID_DAYS, limit: int = 8) -> list[di
 
 
 STEPS = 7
+REMIND_HOURS = 24
+
+
+def reminders(items: list[dict], now: datetime) -> list[dict]:
+    """Work that is not submitted and closes within the next 24 hours. Alerts repeat this
+    on every run until it is submitted, so a pending delivery is never forgotten.
+    Nothing is stored: a fresh cloud clone has no memory, and the Moodle status is the
+    memory (a submission removes the reminder)."""
+    out = []
+    for i in items:
+        if i["submitted"]:
+            continue
+        if i["due_ts"]:
+            ahead = i["due_ts"] - now.timestamp()
+            if 0 < ahead <= REMIND_HOURS * 3600:
+                out.append(i)
+        elif i["days"] == 0:
+            out.append(i)   # the route gives only a day, no hour
+    return sorted(out, key=lambda i: i["due_ts"] or 10**12)
 
 
 def next_steps(d: dict, now: datetime) -> list[dict]:
@@ -309,7 +330,14 @@ def as_text(d: dict) -> str:
     """Plain text (Spanish), used for the email body and the terminal."""
     lines = []
     if d["mode"] == "alerts":
-        lines.append("Novedades en el aula")
+        lines.append("Novedades en el aula" if not d.get("reminders") else
+                     "Recordatorio y novedades del aula")
+        if d.get("reminders"):
+            lines.append("\nSin entregar (cierra en las próximas 24 horas):")
+            for i in d["reminders"]:
+                end = f"{i['due']}" + (f" {datetime.fromtimestamp(i['due_ts'], settings.get().tz):%H:%M}"
+                                       if i.get("due_ts") else "")
+                lines.append(f"  - {i['subject']} · {i['label']} · cierra {end}")
     else:
         lines.append(f"Buenos días. Resumen del {d['date']}.")
         if d["classes_today"]:
@@ -376,7 +404,14 @@ def send(d: dict, account_id: str, to: str) -> str:
     provider = mail.provider_for(mail.get_account(account_id))
     if not hasattr(provider, "send"):
         raise mail.MailError(f"account {account_id} cannot send mail")
-    subject = ("Novedades en el aula" if d["mode"] == "alerts"
-               else f"Mañanita: tu día {d['date']}")
+    if d["mode"] != "alerts":
+        subject = f"Mañanita: tu día {d['date']}"
+    elif d.get("reminders") and not any(d["classroom"][k] for k in
+                                        ("changed_assignments", "announcements", "updates",
+                                         "notifications")) and not d["mail"]:
+        first = d["reminders"][0]
+        subject = f"Recordatorio: {first['label']} ({first['subject']}) sin entregar"
+    else:
+        subject = "Novedades en el aula"
     return provider.send(to, subject, as_html(d), as_text(d))
 

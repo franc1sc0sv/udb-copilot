@@ -83,7 +83,7 @@
 <tr><td style="padding:4px 8px 16px;">
   <div style="font:700 12px/16px {{ SANS }};color:{{ C.clay }};letter-spacing:1.4px;text-transform:uppercase;">✳ udb · {{ "novedades en el aula" if d.mode == "alerts" else "tu resumen" }}</div>
   <div class="big" style="font:600 30px/36px {{ SERIF }};color:{{ C.ink }};margin-top:6px;">
-    {%- if d.mode == "alerts" %}Algo cambió en tu aula{% else %}{{ d.date | day_month | capitalize }}{% endif -%}
+    {%- if d.mode == "alerts" %}{{ "Algo cambió en tu aula" if (cr.updates or cr.changed_assignments or cr.notifications or cr.announcements or d.mail) else "Tienes entregas pendientes" }}{% else %}{{ d.date | day_month | capitalize }}{% endif -%}
   </div>
   <div style="font:14px/20px {{ SANS }};color:{{ C.muted }};margin-top:4px;">{{ d.date | long_date | capitalize }} · {{ d.generated | clock }}</div>
   {%- if d.mode != "alerts" and (d.classes_today or d.events_today) %}
@@ -118,7 +118,7 @@
 
 {#- ------------------------------------------------------------ next steps, by urgency #}
 {%- if d.next_steps %}
-{{ card_open("Qué hacer ahora", "Lo que cierra antes va primero; el mismo día, lo que pesa más.") }}
+{{ card_open("Sin entregar" if d.mode == "alerts" else "Qué hacer ahora", "Cierra en las próximas 24 horas y aún no está entregado. Este aviso se repite hasta que entregues." if d.mode == "alerts" else "Lo que cierra antes va primero; el mismo día, lo que pesa más.") }}
 {%- for key, title, tone in GROUPS %}
 {%- set steps = d.next_steps | selectattr("group", "equalto", key) | list %}
 {%- if steps %}
