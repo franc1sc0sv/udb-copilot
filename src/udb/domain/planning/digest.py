@@ -12,6 +12,7 @@ Alerts (`alerts=True`): only what is new in the window — a new or edited
 assignment, an announcement, a teacher email. Empty means "send nothing".
 """
 import json
+import re
 from datetime import date, datetime
 
 from udb.config import settings
@@ -60,6 +61,7 @@ def countdown(rows: list[dict], today: date) -> list[dict]:
             if days < 0 or days > HORIZON_DAYS:
                 continue
             out.append({"subject": code, "label": raw["label"], "due": due.isoformat(),
+                        "due_ts": row["due"] if row and row["due"] else None,
                         "route_due": item["end"].isoformat() if abs((due - item["end"]).days) > 1 else None,
                         "days": days, "weight": raw.get("weight"),
                         "kind": agenda.KINDS.get(raw.get("kind"), raw.get("kind")),
@@ -71,7 +73,7 @@ def countdown(rows: list[dict], today: date) -> list[dict]:
         days = (due - today).days
         if 0 <= days <= HORIZON_DAYS:
             out.append({"subject": row["subject"], "label": row["name"], "due": due.isoformat(),
-                        "days": days, "weight": None, "kind": row["type"], "submitted": False,
+                        "due_ts": row["due"], "days": days, "weight": None, "kind": row["type"], "submitted": False,
                         "url": row["url"]})
     return sorted(out, key=lambda x: (x["days"], x["subject"]))
 
@@ -110,8 +112,13 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
 
     news = _source(sources, "moodle-news", lambda: moodle_news(hours, alerts, now),
                    {"updates": [], "notifications": []})
+    for m in labelled:
+        if m["provider"] == "gmail":
+            m["link"] = f"https://mail.google.com/mail/u/0/#all/{m['id']}"
     data = {
         "generated": now.isoformat(timespec="minutes"), "date": today.isoformat(),
+        "subjects": {s["code"]: s["name"] for s in load_subjects()},
+        "moodle_url": settings.get().institution.get("moodle_url", ""),
         "weekday": WEEKDAYS[today.weekday()], "hours": hours, "mode": "alerts" if alerts else "digest",
         "classroom": {"changed_assignments": changed_assignments(rows, since),
                       "announcements": announcements, "forum_posts": posts,
@@ -131,6 +138,7 @@ def build(hours: int = 24, alerts: bool = False, now: datetime | None = None) ->
     data["countdown"] = items
     data["due_soon"] = [i for i in items if i["days"] <= DUE_SOON_DAYS and not i["submitted"]]
     data["events_today"] = _source(sources, "Google Calendar", lambda: _events_today(today), [])
+    data["next_steps"] = next_steps(data, now)
     return data
 
 
@@ -143,7 +151,39 @@ def moodle_calendar(days: int = CALENDAR_DAYS) -> list[dict]:
     """Every Moodle calendar event in the next `days`: deadlines and live sessions."""
     from udb.integrations.moodle import reader
     with reader.connect() as api:
-        return reader.calendar(api, days=days)
+        events = reader.calendar(api, days=days)
+    for e in events:
+        e["name"] = _clean(MEETING_DATE.sub("", e["name"] or ""))
+        if e["name"].lower().startswith("reunión de "):
+            e["name"] = "Clase en vivo · " + e["name"][len("reunión de "):]
+        e["kind"] = event_kind(e)
+        e["day"] = datetime.fromtimestamp(e["ts"], settings.get().tz).date().isoformat()
+    return events
+
+
+MEETING_DATE = re.compile(r"\s+el \d{4}-\d{2}-\d{2} a las \d{2}:\d{2}(:\d{2})?$")
+CHANGES_ES = {"configuration": "ajustes", "submissions": "entregas", "contentfiles": "archivos",
+              "introfiles": "archivos", "grades": "notas", "gradeitems": "calificación",
+              "attempts": "intentos", "discussions": "debates", "posts": "mensajes",
+              "completion": "avance", "outcomes": "resultados", "comments": "comentarios"}
+
+
+def _clean(name: str) -> str:
+    """Moodle titles carry decoration ('***(Deje sus aportes aquí....)***'): drop it."""
+    name = re.sub(r"\*{2,}", "", name)
+    name = re.sub(r"\s*\(\s*deje sus aportes[^)]*\)", "", name, flags=re.IGNORECASE)
+    return " ".join(name.split()).strip(" .")
+
+
+def event_kind(e: dict) -> str:
+    kind = e.get("type") or ""
+    if kind == "quiz":
+        return "examen"
+    if kind == "assign":
+        return "entrega"
+    if kind == "forum":
+        return "foro"
+    return "clase en vivo" if "reuni" in (e.get("name") or "").lower() else "evento"
 
 
 def _key(kind: str, item: dict) -> str:
@@ -179,6 +219,9 @@ def moodle_news(hours: int, alerts: bool = False, now: datetime | None = None) -
         notes = reader.notifications(api, limit=15, unread_only=True)
     if alerts:
         notes = [n for n in notes if (n["when"] or "") >= cutoff]
+    for u in updates:
+        u["name"] = _clean(u["name"])
+        u["changed_es"] = [CHANGES_ES.get(c, c) for c in u["changed"]]
     seen = _seen()
     for u in updates:
         u["new"] = _key("u", u) not in seen if seen else (u["when"] or "") >= cutoff
@@ -215,6 +258,39 @@ def said_in_class(today: date, days: int = SAID_DAYS, limit: int = 8) -> list[di
                         "dates": [d["date"] for d in ahead], "quote": h["quote"][:300],
                         "points": h["points"]})
     return sorted(out, key=lambda x: -x["points"])[:limit]
+
+
+STEPS = 4
+
+
+def next_steps(d: dict, now: datetime) -> list[dict]:
+    """What to do first, from the data only: the closest unsubmitted deadlines (heavier
+    first on the same day), a date that Moodle and the route disagree on, unread
+    notifications and teacher mail. No model, so nothing is invented."""
+    steps = []
+    open_items = [i for i in d["countdown"] if not i["submitted"] and i["days"] <= 7]
+    for i in sorted(open_items, key=lambda i: (i["days"], -(i["weight"] or 0)))[:3]:
+        verb = "Presenta" if i["kind"] in ("exam", "quiz") else "Entrega"
+        said = i["label"].lower().startswith(("entrega", "examen", "prueba", "presenta"))
+        steps.append({"tone": "urgent" if i["days"] <= 1 else "soon",
+                      "title": i["label"] if said else f"{verb}: {i['label']}",
+                      "subject": i["subject"],
+                      "due": i["due_ts"] or i["due"], "weight": i["weight"], "url": i["url"]})
+    clash = next((i for i in d["countdown"] if i.get("route_due") and not i["submitted"]), None)
+    if clash and len(steps) < STEPS:
+        steps.append({"tone": "check", "title": f"Confirma la fecha de {clash['label']}",
+                      "subject": clash["subject"], "url": clash["url"],
+                      "moodle_day": clash["due_ts"] or clash["due"], "route_day": clash["route_due"]})
+    unread = d["classroom"]["notifications"]
+    if unread and len(steps) < STEPS:
+        steps.append({"tone": "info", "title": f"Lee {len(unread)} notificación"
+                      f"{'es' if len(unread) > 1 else ''} sin leer en Moodle",
+                      "url": f"{d['moodle_url']}/message/output/popup/notifications.php"})
+    if d["mail"] and len(steps) < STEPS:
+        steps.append({"tone": "info", "title": f"Revisa {len(d['mail'])} correo"
+                      f"{'s' if len(d['mail']) > 1 else ''} de profesores o del aula",
+                      "url": d["mail"][0].get("link")})
+    return steps
 
 
 def _events_today(today: date) -> list[dict]:

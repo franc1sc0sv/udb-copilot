@@ -9,5 +9,9 @@ TEMPLATES = Path(__file__).parent / "templates"
 
 @lru_cache(maxsize=1)
 def env() -> Environment:
-    return Environment(loader=FileSystemLoader(str(TEMPLATES)),
-                       autoescape=select_autoescape(["html", "j2"]))
+    from udb.rendering import dates_es
+
+    environment = Environment(loader=FileSystemLoader(str(TEMPLATES)),
+                              autoescape=select_autoescape(["html", "j2"]))
+    environment.filters.update(dates_es.FILTERS)
+    return environment

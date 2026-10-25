@@ -362,7 +362,8 @@ def notifications(api: Api, limit: int = 30, unread_only: bool = False) -> list[
     for n in data.get("notifications", []):
         if unread_only and n.get("read"):
             continue
-        out.append({"when": when(n.get("timecreated")), "read": bool(n.get("read")),
+        out.append({"when": when(n.get("timecreated")), "ts": n.get("timecreated") or 0,
+                    "read": bool(n.get("read")),
                     "subject": n.get("subject"), "from": n.get("component"),
                     "text": text(n.get("fullmessagehtml") or n.get("fullmessage")
                                  or n.get("smallmessage"))[:800],
@@ -402,10 +403,20 @@ def calendar(api: Api, days: int = 30, subject: str = "") -> list[dict]:
     params.update(_ids("events[courseids]", _course_ids(api, subject)))
     codes = subject_courses()
     data = api.call("core_calendar_get_calendar_events", **params)
-    return sorted(({"when": when(e.get("timestart")), "subject": codes.get(e.get("courseid")),
+    events = data.get("events", [])
+    # Calendar events name the module instance, not the page: map it to the activity URL.
+    urls = {}
+    for cid in {e.get("courseid") for e in events if e.get("modulename")}:
+        for s in api.course_contents(cid):
+            for m in s.get("modules", []):
+                urls[(m.get("modname"), m.get("instance"))] = m.get("url")
+    return sorted(({"when": when(e.get("timestart")), "ts": e.get("timestart") or 0,
+                    "subject": codes.get(e.get("courseid")),
                     "name": e.get("name"), "type": e.get("modulename") or e.get("eventtype"),
+                    "url": urls.get((e.get("modulename"), e.get("instance")))
+                    or f"{api.base}/calendar/view.php?view=day&time={e.get('timestart') or 0}",
                     "description": text(e.get("description"))[:300]}
-                   for e in data.get("events", [])), key=lambda e: e["when"] or "")
+                   for e in events), key=lambda e: e["ts"])
 
 
 def updates(api: Api, hours: int = 72, subject: str = "") -> list[dict]:
@@ -415,13 +426,19 @@ def updates(api: Api, hours: int = 72, subject: str = "") -> list[dict]:
 
     def one(cid: int) -> list[dict]:
         data = api.call("core_course_get_updates_since", courseid=cid, since=since)
-        names = {m["id"]: m.get("name") for s in api.course_contents(cid)
-                 for m in s.get("modules", [])} if data.get("instances") else {}
-        return [{"subject": codes.get(cid), "cmid": i["id"], "name": names.get(i["id"]),
-                 "changed": sorted({u["name"] for u in i.get("updates", [])}),
-                 "when": when(max((u.get("timeupdated") or 0 for u in i.get("updates", [])),
-                                  default=0))}
-                for i in data.get("instances", []) if i.get("contextlevel") == "module"]
+        mods = {m["id"]: m for s in api.course_contents(cid)
+                for m in s.get("modules", [])} if data.get("instances") else {}
+        rows = []
+        for i in data.get("instances", []):
+            if i.get("contextlevel") != "module":
+                continue
+            ts = max((u.get("timeupdated") or 0 for u in i.get("updates", [])), default=0)
+            m = mods.get(i["id"], {})
+            rows.append({"subject": codes.get(cid), "cmid": i["id"], "name": m.get("name"),
+                         "url": m.get("url"), "type": m.get("modname"),
+                         "changed": sorted({u["name"] for u in i.get("updates", [])}),
+                         "when": when(ts), "ts": ts})
+        return rows
 
     return [row for rows in _parallel(one, _course_ids(api, subject)) for row in rows]
 
