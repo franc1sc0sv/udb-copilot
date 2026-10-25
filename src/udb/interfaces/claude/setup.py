@@ -114,18 +114,26 @@ def _merge_hooks(settings_path: Path) -> None:
                              encoding="utf-8")
 
 
+def _udb(*args: str) -> dict:
+    """An MCP entry that installs udb first when missing: a cloud session may start the
+    servers before the SessionStart hook, and then needs no setup script."""
+    run = (PATH_FIX + "command -v udb >/dev/null 2>&1 || uv tool install -q "
+           f'"${{UDB_INSTALL_SPEC:-{INSTALL_SPEC}}}" >&2; exec udb ' + " ".join(args))
+    return {"command": "bash", "args": ["-c", run]}
+
+
 def _merge_mcp(path: Path, google: bool, moodle: bool = True) -> None:
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    data.setdefault("mcpServers", {})["vault"] = {"command": "udb", "args": ["mcp"]}
+    data.setdefault("mcpServers", {})["vault"] = _udb("mcp")
     if moodle:
         # The whole classroom, read only (grades, forums, messages, notifications).
-        data["mcpServers"]["moodle"] = {"command": "udb", "args": ["moodle", "mcp"]}
+        data["mcpServers"]["moodle"] = _udb("moodle", "mcp")
     else:
         data["mcpServers"].pop("moodle", None)
     if google:
         # The Google Workspace MCP, with the same OAuth app and login as udb's Gmail.
         # Same name as a user-level entry on purpose: Claude Code keeps one per name.
-        data["mcpServers"]["google-workspace"] = {"command": "udb", "args": ["google-mcp"]}
+        data["mcpServers"]["google-workspace"] = _udb("google-mcp")
     else:
         data["mcpServers"].pop("google-workspace", None)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")

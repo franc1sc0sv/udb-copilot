@@ -18,45 +18,34 @@ stop with a clear message, the session hook skips the Moodle sync and tells
 Claude what is not available. Reading transcripts, board stills already
 committed and the radar keep working.
 
-## 1. Environment
+## 1. Environment (once)
 
-In [claude.ai/code](https://claude.ai/code) → your vault repo → environment settings:
-
-**Network access: Custom**, allowing:
-
-```
-www.udbvirtual.edu.sv
-*.googleapis.com
-oauth2.googleapis.com
-accounts.google.com
-github.com
-pypi.org
-files.pythonhosted.org
-registry.npmjs.org
-```
-
-Add your IMAP host if you use one.
-
-**Environment variables** (only for you; never commit them): one variable,
-`UDB_SECRETS`. On your computer run `udb cloud secrets` and paste its output as
-the value. It packs the Moodle token, mail and Google tokens and the Google
-Workspace MCP credentials; each cloud session unpacks them into the same files.
-Run it again only when you add an account or renew a token.
-
-Never put your UDB password in the cloud: only the token. In a cloud session,
-`udb cloud check` shows whether the secrets were restored, the hosts are
-reachable and OCR works.
-
-**Setup script** (optional; the SessionStart hook does the same if you skip it):
+Use **one** cloud environment for the phone and every routine. On your
+computer, in the vault, run once:
 
 ```bash
-#!/bin/bash
-set -e
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-uv tool install "udb-copilot @ git+https://github.com/franc1sc0sv/udb-copilot"
-udb setup mathjax || true
+udb cloud setup
 ```
+
+It logs in to Moodle only if the token is missing or dead (the password is
+never stored), packs every credential (Moodle token, mail and Google tokens,
+the Google Workspace MCP login) into one value, copies it to the clipboard and
+prints the two things to set in [claude.ai/code](https://claude.ai/code) →
+the environment → edit:
+
+1. **Network access: Custom**, keeping the default package registries, with
+   the hosts it prints (Moodle, Google APIs, GitHub, PyPI, npm). Add your IMAP
+   host if you use one.
+2. **Environment variables:** `UDB_SECRETS=<paste>`. Only you can see it;
+   never commit it.
+
+No setup script is needed: the vault's `.mcp.json` and SessionStart hook
+install udb when it is missing. Each cloud session unpacks `UDB_SECRETS` into
+the same files as at home. Run `udb cloud setup` again only after a new login
+or a new mail account, and paste the new value in the same environment.
+
+In a cloud session, `udb cloud check` shows whether the secrets were restored,
+the hosts are reachable and OCR works.
 
 ## 2. Routines
 

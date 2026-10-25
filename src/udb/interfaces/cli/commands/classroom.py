@@ -28,7 +28,7 @@ def register(app: typer.Typer) -> None:
         token = guarded(client.fetch_token, user, password)
         path = guarded(client.store_token, token)
         console.print(f"[green]Token stored in {path} (mode 600).[/green]")
-        console.print("For cloud sessions, put that token in the MOODLE_TOKEN variable.")
+        console.print("For cloud sessions run `udb cloud setup` (it packs the token into UDB_SECRETS).")
 
     @moodle_app.command("mcp")
     def moodle_mcp():

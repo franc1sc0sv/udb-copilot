@@ -18,6 +18,7 @@ BUNDLE_ENV = "UDB_SECRETS"
 WORKSPACE_DIR = Path("~/.google_workspace_mcp/credentials").expanduser()
 WORKSPACE_ENV = Path("~/.config/workspace-mcp/env").expanduser()
 CLIENT_KEYS = ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET")
+BUNDLE_FILE = "cloud-bundle.txt"   # the last export, never packed into the next one
 
 
 def secrets_dir() -> Path:
@@ -62,7 +63,7 @@ def export() -> tuple[str, list[str]]:
     folder = secrets_dir()
     if folder.exists():
         for path in folder.iterdir():
-            if path.is_file():
+            if path.is_file() and path.name != BUNDLE_FILE:
                 files[f"udb/{path.name}"] = path.read_text(encoding="utf-8")
     if WORKSPACE_DIR.exists():
         for path in WORKSPACE_DIR.glob("*.json"):
